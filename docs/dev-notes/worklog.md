@@ -37,3 +37,56 @@ Done:
 - Overview (minimal change on this branch; fully rewritten in `batch-queries`): uses the M2M, so a puzzle shows in every round it's in.
 
 Verified: 14 tests OK, including a forward/backward test of the data migration and an overview test with a puzzle in two rounds.
+
+## 2026-11-09: branch `batch-queries` (from `multi-round-puzzles`)
+
+### Measured query counts (SQLite test DB; N puzzles, each with a log, a queued answer, and a hint)
+
+| Endpoint | Before, N=10 | Before, N=20 | After (any N) |
+| --- | --- | --- | --- |
+| `/api_overview` | 77 | 137 | **12** |
+| `/api_unloved/` | 71 | 131 | **6** |
+| `/hints/` | 107 | 207 | **8** |
+| `/whowhat/` | 49 | 89 | **7** |
+| `/answers/` | 25 | 45 | **6** |
+| `/api_puzzle_history/<id>` | 13 | 13 (grows with log rows) | **4** |
+| `/api_puzzle/<id>` | 16 | 16 (grows with hints) | **14** |
+
+The "before" numbers were taken on this branch's starting point with a temporary probe test (since deleted).
+Counts include the 2 auth/session queries. `BatchedViewsTests.test_query_counts_are_constant` now fails if any of these
+starts growing with N, and pins the overview at 12.
+
+### Done
+- New `puzzles/queries.py`: batched equivalents of the per-puzzle methods (`recent_solver_counts`, `recent_solvers_by_puzzle`,
+  `linked_out_puzzle_ids`, `log_summary_by_puzzle`). The per-puzzle methods are kept for single-puzzle use.
+- `api_overview` rewritten (plan §3). New response keys: `hunt` and `parent_round_id`; existing keys and shape are unchanged. Supports `?hunt=<id>`
+  (404 if the hunt is unknown). Rounds come out depth-first. Each puzzle's dict is built once and shared across its rounds.
+- `api_unloved`: one AccessLog pass gives both the last log and the effort per puzzle. Shared `unloved_candidates()` fetches Config once and uses the exempt sets as subqueries.
+  This also means the module-level helpers `unloved_exempt_statuses()` / `unloved_exempt_tags()` are no longer used by the views (they're kept in models.py).
+- `get_last_revs` (Drive): materializes the puzzle list once (it used to run one query per puzzle through `qs[i]`), maps responses by explicit `request_id`,
+  splits batches into groups of 100 (this resolves the old TODO), handles files with no revisions, and uses aware `now()` in the sort.
+  The old code raised TypeError when some puzzles had revisions and others didn't.
+- `api_puzzle_history`: one `values_list` join plus one users query. A missing puzzle id now returns empty lists instead of a 500.
+- `build_puzzle_dict`: `select_related('status','priority')` and prefetches of tags, rounds, and hints with their users.
+- `api_update_puzzle` tags: one `name__in` lookup; only the missing tags are created (one at a time, so the `notify_of_new_tag` signal still fires).
+  `notify_tag_on_add`: one query for all added tags.
+- `answer_queue`: one query for successful submissions. Duplicate successes no longer show as "No".
+- `hint_queue`: `select_related`; effort and recent solvers are batched for open hints. **Template changed**: `hint-queue.html` now reads
+  `hint.effort.*` / `hint.recent_solvers` instead of calling `hint.puzzle.effort_spent` / `recent_solvers` (each of those was 2 queries per hint).
+- `who_what`: `select_related('user','puzzle')`.
+- `Puzzle.save()`: fetches only the old `answer` column. `log_on_creation`: aware `now()`, which fixes the naive-datetime bug.
+- `puzzlescrape`: extracted `sync_state(state)` and `print_dry_run(state)`. Puzzles, the hunt's rounds, and memberships are each loaded once,
+  so a re-run with nothing new costs 5 queries in total. Saves are skipped when the answer and status are already correct. The `solved!` status is now
+  looked up at run time instead of import time. **`--file` now works**: it used to load the JSON and then do nothing. It expects the
+  `initialAllPuzzlesState` shape.
+
+Verified: 23 tests OK (`--settings=solving.test_settings`), `makemigrations --check` clean, `manage.py check` clean, and no RuntimeWarnings.
+
+### Not done / left for the owner
+- No frontend changes beyond `hint-queue.html`. A puzzle that's in two rounds shows up in both round blocks on the overview, as intended.
+  There's no hunt switcher in the UI yet.
+- Not deployed and not migrated. Deploy order: `pg_dump` → check out `batch-queries` (it contains all three branches) → `manage.py migrate`
+  → restart gunicorn → rename "Current Hunt" in the admin.
+- Not tested against Postgres. Everything uses portable ORM features (Exists, partial UniqueConstraint), but it's worth running the suite once
+  against a scratch Postgres DB.
+- `handle_puzzle_answer` → `puzzle.zulip_stream()` AttributeError is still there (see findings.md).
