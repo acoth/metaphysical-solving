@@ -101,6 +101,53 @@ class HuntModelTests(IsolatedTestCase):
             child.clean()
 
 
+
+class MultiRoundTests(IsolatedTestCase):
+    def setUp(self):
+        super().setUp()
+        self.hunt = Hunt.objects.create(name='2027', is_current=True)
+        self.r1 = Round.objects.create(name='Alpha', hunt=self.hunt)
+        self.r2 = Round.objects.create(name='Beta', hunt=self.hunt)
+        self.client.force_login(self.user)
+
+    def test_puzzle_in_two_rounds(self):
+        meta = self.make_puzzle('Meta')
+        meta.rounds.add(self.r1, self.r2)
+        self.assertEqual(set(self.r1.puzzles.all()), {meta})
+        self.assertEqual(set(self.r2.puzzles.all()), {meta})
+        self.assertEqual(meta.round_names(), 'Alpha, Beta')
+
+    def test_round_names_empty(self):
+        self.assertEqual(self.make_puzzle().round_names(), '')
+
+    def test_overview_lists_puzzle_under_each_round(self):
+        meta = self.make_puzzle('Meta')
+        meta.rounds.add(self.r1, self.r2)
+        loose = self.make_puzzle('Loose')
+        data = self.client.get('/api_overview').json()
+        by_name = {r['round']: r for r in data['rounds']}
+        self.assertEqual([p['title'] for p in by_name['Alpha']['puzzles']], ['Meta'])
+        self.assertEqual([p['title'] for p in by_name['Beta']['puzzles']], ['Meta'])
+        self.assertEqual([p['id'] for p in by_name['Unassigned']['puzzles']], [loose.id])
+
+    def test_api_puzzle_reports_all_rounds(self):
+        meta = self.make_puzzle('Meta')
+        meta.rounds.add(self.r1, self.r2)
+        data = self.client.get('/api_puzzle/%d' % meta.id).json()['puzzle']
+        self.assertEqual(data['round'], 'Alpha, Beta')
+        self.assertEqual([r['name'] for r in data['rounds']], ['Alpha', 'Beta'])
+
+    def test_solved_message_lists_rounds(self):
+        import puzzles.models as m
+        meta = self.make_puzzle('Meta')
+        meta.rounds.add(self.r1, self.r2)
+        m.zulip_send.reset_mock()
+        meta.answer = 'FOO'
+        meta.save()
+        messages = [c.kwargs['message'] for c in m.zulip_send.call_args_list]
+        self.assertIn('Puzzle Meta solved [Alpha, Beta]', messages)
+
+
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
@@ -146,3 +193,33 @@ class HuntDataMigrationTests(MigrationTestCase):
         hunt = Hunt.objects.get()
         self.assertTrue(hunt.is_current)
         self.assertEqual(Round.objects.filter(hunt=hunt).count(), 2)
+
+
+
+class RoundsM2MDataMigrationTests(MigrationTestCase):
+    migrate_from = '0004_hunt'
+    migrate_to = '0005_puzzle_rounds_m2m'
+
+    def seed(self, apps):
+        Status = apps.get_model('puzzles', 'Status')
+        Priority = apps.get_model('puzzles', 'Priority')
+        Round = apps.get_model('puzzles', 'Round')
+        Puzzle = apps.get_model('puzzles', 'Puzzle')
+        status = Status.objects.create(text='new', css_name='new', order=0)
+        priority = Priority.objects.create(text='normal', css_name='normal', order=0)
+        r = Round.objects.create(name='Alpha', order=0)
+        common = dict(status=status, priority=priority, template=None, folder=None)
+        Puzzle.objects.create(title='In round', url='https://h.example/1', round=r, order=0, **common)
+        Puzzle.objects.create(title='No round', url='https://h.example/2', order=1, **common)
+
+    def test_fk_copied_into_m2m(self):
+        Puzzle = self.apps.get_model('puzzles', 'Puzzle')
+        self.assertEqual([r.name for r in Puzzle.objects.get(title='In round').rounds.all()], ['Alpha'])
+        self.assertEqual(Puzzle.objects.get(title='No round').rounds.count(), 0)
+
+    def test_reverse_restores_fk(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate([('puzzles', self.migrate_from)])
+        Puzzle = executor.loader.project_state([('puzzles', self.migrate_from)]).apps.get_model('puzzles', 'Puzzle')
+        self.assertEqual(Puzzle.objects.get(title='In round').round.name, 'Alpha')
+        self.assertIsNone(Puzzle.objects.get(title='No round').round)
