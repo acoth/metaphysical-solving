@@ -17,9 +17,10 @@ admin.site.register(Tag, ItemAdmin)
 admin.site.register(Location, ItemAdmin)
 class PuzzleAdmin(OrderedModelAdmin):
 	list_display = ('title', 'status', 'priority', 'answer', 'move_up_down_links')
-	list_filter = ('status', 'priority')
+	list_filter = ('status', 'priority', 'rounds__hunt', 'rounds')
 	search_fields = ('title', 'answer')
-	fields = ('title', 'url', 'status', 'priority', 'tags', 'motp', 'description', 'round',
+	filter_horizontal = ('rounds',)
+	fields = ('title', 'url', 'status', 'priority', 'tags', 'motp', 'description', 'rounds',
 			  'solvers', 'topic_name', 'spreadsheet', 'answer', 'checkAnswerLink', 'template', 'folder')
 	def get_readonly_fields(self,request, obj=None):
 		if obj:
