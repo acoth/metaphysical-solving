@@ -16,6 +16,6 @@ Done:
   and `MigrationTestCase` checks the data migrations.
 
 Verified: `manage.py test puzzles --settings=solving.test_settings` gives 7 tests, OK.
-`makemigrations --check` is clean. **Not** migrated on the production DB.
+`makemigrations --check` is clean. (Later migrated on the local DB; see the batch-queries entry.)
 
 After deploying: rename the auto-created "Current Hunt" in the admin (e.g. "MIT Mystery Hunt 2027").

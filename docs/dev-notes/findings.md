@@ -50,6 +50,8 @@ Let R be the number of rounds, P the number of puzzles, and L the number of acce
 ## Environment facts
 
 - Django 6.0.1, Python 3.12, venv at `env/`. Postgres DB `puzzle_db` on localhost, all 3 migrations applied as of 2026-11-09.
-- This checkout appears to be the **live** server (`BASE_URL = https://veg.metaphysicalplant.com`, real Zulip/Google credentials in `configuration/`).
-  Do **not** run `migrate` or the test suite against the default settings without thinking. See [testing.md](testing.md).
+- `/home/puzzle/metaphysical-solving` is the owner's **local testing environment**, not production (confirmed by the owner 2026-11-09).
+  `local_settings.py` still carries production-like values (`BASE_URL`, Zulip/Google credentials in `configuration/`), but this box isn't live.
+  The dev server runs as `manage.py runserver 8080` (it autoreloads on code changes). The owner views it via an SSH port-forward at `localhost:8080`.
+- Migrations and tests may be run against the local Postgres DB. Take a `pg_dump` backup first (see [testing.md](testing.md)).
 - `zulip_send`, `create_google_spreadsheet`, `grant_access`, and `zulip_create_user` all hit real external services and are called from model `save()` and signal handlers.

@@ -1,14 +1,22 @@
-# Testing safely
+# Testing
 
-This checkout is (or looks like) the live server, so:
+This checkout is a local testing environment backed by Postgres (`puzzle_db` on localhost). There are two ways to run the suite:
 
-- **Never** run `manage.py test` with the default settings. Django would try to create `test_puzzle_db` on the real Postgres server, and the
-  model hooks would call real Zulip and Google APIs.
-- Use the SQLite test settings instead:
+**SQLite (fast, needs no DB permissions):**
 
 ```bash
 env/bin/python manage.py test puzzles --settings=solving.test_settings
 ```
+
+**Postgres (matches the real backend):** Django creates and then drops a throwaway `test_puzzle_db`, so the `puzzle` role needs `CREATEDB`
+(it doesn't have it by default). Grant it once as the postgres superuser:
+
+```bash
+sudo -u postgres psql -c "ALTER ROLE puzzle CREATEDB;"
+env/bin/python manage.py test puzzles --noinput
+```
+
+Either way, external services are mocked by the tests (below), so no Zulip or Google calls are made.
 
 `solving/test_settings.py` imports the normal settings and overrides `DATABASES` to use in-memory SQLite.
 `puzzles/tests.py` patches every outbound integration (`zulip_send`, `zulip_create_user`, `create_google_spreadsheet`,
@@ -23,4 +31,10 @@ Check migrations without touching the DB:
 env/bin/python manage.py makemigrations --check --dry-run --settings=solving.test_settings
 ```
 
-Applying the migrations to production (`manage.py migrate`) is a deliberate deploy step. Take a `pg_dump` first.
+## Before migrating the local DB, back it up
+
+```bash
+mkdir -p ~/backups
+PGPASSWORD=... pg_dump -h localhost -U puzzle -Fc -f ~/backups/puzzle_db_$(date +%Y%m%d-%H%M%S).dump puzzle_db
+# restore: pg_restore -h localhost -U puzzle -d puzzle_db --clean --if-exists <file>
+```
