@@ -85,8 +85,20 @@ Verified: 23 tests OK (`--settings=solving.test_settings`), `makemigrations --ch
 ### Not done / left for the owner
 - No frontend changes beyond `hint-queue.html`. A puzzle that's in two rounds shows up in both round blocks on the overview, as intended.
   There's no hunt switcher in the UI yet.
-- Not deployed and not migrated. Deploy order: `pg_dump` → check out `batch-queries` (it contains all three branches) → `manage.py migrate`
-  → restart gunicorn → rename "Current Hunt" in the admin.
+- Deploying elsewhere: `pg_dump` → check out `batch-queries` (it contains all three branches) → `manage.py migrate`
+  → restart the app server → rename "Current Hunt" in the admin.
 - Not tested against Postgres. Everything uses portable ORM features (Exists, partial UniqueConstraint), but it's worth running the suite once
   against a scratch Postgres DB.
 - `handle_puzzle_answer` → `puzzle.zulip_stream()` AttributeError is still there (see findings.md).
+
+## 2026-11-09: migrated the local Postgres DB (owner confirmed this is a local test environment)
+
+- Backup: `/home/puzzle/backups/puzzle_db_pre-hunt-m2m_20261109-013422.dump` (`pg_dump -Fc`, 38 tables).
+  Restore: `pg_restore -h localhost -U puzzle -d puzzle_db --clean --if-exists <file>`.
+- Before: 33 rounds (16 nested), 262 puzzles, 260 of them with a round.
+- `manage.py migrate puzzles` applied `0004_hunt` and `0005_puzzle_rounds_m2m`. Checked: the (puzzle, round) pairs in `puzzles_puzzle_rounds`
+  match the old `round_id` values exactly (diff of all 260). Hunt #1 "Current Hunt" (`is_current`) holds all 33 rounds.
+- Read-only smoke test (RequestFactory, so no auth queries) on the real data, all returning 200: overview 10 queries / ~120 ms
+  (34 round blocks incl. Unassigned, 262 puzzle entries); unloved 4; api_puzzle 11; history 2; answer queue 3; hint queue 2; who's-on-what 3.
+- Postgres test run **blocked**: the `puzzle` role lacks CREATEDB (see testing.md). The SQLite suite passes.
+- The notes were corrected via a commit on `hunt-model` (they had assumed this was production); `multi-round-puzzles` and `batch-queries` were rebased onto it.
