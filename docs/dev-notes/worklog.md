@@ -100,5 +100,5 @@ Verified: 23 tests OK (`--settings=solving.test_settings`), `makemigrations --ch
   match the old `round_id` values exactly (diff of all 260). Hunt #1 "Current Hunt" (`is_current`) holds all 33 rounds.
 - Read-only smoke test (RequestFactory, so no auth queries) on the real data, all returning 200: overview 10 queries / ~120 ms
   (34 round blocks incl. Unassigned, 262 puzzle entries); unloved 4; api_puzzle 11; history 2; answer queue 3; hint queue 2; who's-on-what 3.
-- Postgres test run **blocked**: the `puzzle` role lacks CREATEDB (see testing.md). The SQLite suite passes.
+- Postgres tests: at first blocked because the `puzzle` role lacked CREATEDB. After the owner granted it: `manage.py test puzzles --noinput` gives 23 tests, OK, on Postgres (≈13 s). The SQLite suite also passes.
 - The notes were corrected via a commit on `hunt-model` (they had assumed this was production); `multi-round-puzzles` and `batch-queries` were rebased onto it.
