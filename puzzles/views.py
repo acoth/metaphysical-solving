@@ -185,7 +185,7 @@ def api_overview(request):
     overview_dict["default_priority"] = str(Config.objects.get().default_priority)
     
     rounds = Round.objects.prefetch_related(
-     Prefetch('puzzles', queryset=Puzzle.objects.all(), to_attr='puzzle_list')
+     Prefetch('puzzle_set', queryset=Puzzle.objects.all(), to_attr='puzzles')
     )
 
     def quick_puzzle_info(puzzle):
@@ -213,13 +213,13 @@ def api_overview(request):
         round_dict["description"] = round.description if round.description else ""
         if round.parent_round:
             round_dict["parent_round"] = round.parent_round.name
-        if round.puzzle_list:
+        if round.puzzles:
             round_dict["puzzles"] = []
-            for puzzle in round.puzzle_list:
+            for puzzle in round.puzzles:
                 round_dict["puzzles"].append(quick_puzzle_info(puzzle))
         rounds_output.append(round_dict)
     
-    puzzles_without_round = Puzzle.objects.filter(rounds__isnull=True)
+    puzzles_without_round = Puzzle.objects.filter(round__isnull=True)
     if puzzles_without_round:
         rounds_output.append(
             {
@@ -284,10 +284,8 @@ def build_puzzle_dict(user, puzzle_id):
     if puzzle_files:
         p_info["uploaded_files"] = puzzle_files
 
-    rounds = puzzle.round_list()
-    if rounds:
-        p_info["round"] = puzzle.round_names()
-        p_info["rounds"] = [{"id": r.id, "name": r.name} for r in rounds]
+    if puzzle.round:
+        p_info["round"] = str(puzzle.round)
 
     if puzzle.answer:
         p_info["answer"] = puzzle.answer
@@ -369,7 +367,7 @@ def api_unloved(request):
     puzzles = [{"puzzle": {
                     "id": s[1].id,
                     "title": s[1].title,
-                    "round": s[1].round_names(),
+                    "round": str(s[1].round) if s[1].round else "",
                     "description": s[1].description,
                     "priority": str(s[1].priority),
                     "priority_css": s[1].priority.css_name,
@@ -394,7 +392,7 @@ def api_unloved_by_spreadsheet(request):
     puzzles = [{"puzzle": {
                     "id": s['puzzle'].id,
                     "title": s['puzzle'].title,
-                    "round": s['puzzle'].round_names(),
+                    "round": str(s['puzzle'].round) if s['puzzle'].round else "",
                     "description": s['puzzle'].description,
                     "priority": str(s['puzzle'].priority),
                     "priority_css": s['puzzle'].priority.css_name,

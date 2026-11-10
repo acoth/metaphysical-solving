@@ -51,9 +51,6 @@ def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
     try:
         puzzle = Puzzle.objects.get(url=url)
         print('Already exists')
-        if round_obj is not None:
-            # Puzzles (e.g. cross-round metas) can be listed under several rounds; .add() is idempotent.
-            puzzle.rounds.add(round_obj)
     except Puzzle.DoesNotExist:
         # Look for Submit Answer link
         # puzzle_page = puzzlelogin.fetch_with_single_login(url)
@@ -70,11 +67,9 @@ def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
 
         try:
             if desc:
-                puzzle = Puzzle.objects.create(title=title, url=url, checkAnswerLink='', description=desc)
+                puzzle = Puzzle.objects.create(title=title, url=url, round= round_obj,checkAnswerLink='', description=desc)
             else:
-                puzzle = Puzzle.objects.create(title=title, url=url, checkAnswerLink='')
-            if round_obj is not None:
-                puzzle.rounds.add(round_obj)
+                puzzle = Puzzle.objects.create(title=title, url=url, round=round_obj, checkAnswerLink='')
             if is_meta:
                 puzzle.tags.add(Tag.objects.get(name='meta'))
             print("Created puzzle (%s, %s)" % (title, url))
@@ -140,8 +135,6 @@ class Command(BaseCommand):
                                     print (e)
                                     continue
                             puzzle_obj = Puzzle.objects.get(url=puzzle_url)
-                            # Already-known puzzle listed under (another) round: record that membership too.
-                            puzzle_obj.rounds.add(round_obj)
                             if puzzle_answer:
                                 puzzle_obj.status = solved_status
                                 puzzle_obj.answer = puzzle_answer
