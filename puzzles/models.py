@@ -372,12 +372,10 @@ class Puzzle(OrderedModel):
         return User.objects.filter(id__in=[urec["user"] for urec in logs.order_by("user").values("user").distinct()])
 
     def save(self, *args, **kwargs):
-        # Grab old instance to see if our answer is new.
-        try:
-            old_puzzle = Puzzle.objects.get(id=self.id)
-            old_answer = old_puzzle.answer
-        except Puzzle.DoesNotExist:
-            old_answer = ''
+        # Grab the old answer (only that column) to see if our answer is new.
+        old_answer = ''
+        if self.pk is not None:
+            old_answer = Puzzle.objects.filter(pk=self.pk).values_list('answer', flat=True).first() or ''
 
         # Save first, so that we don't create a new spreadsheet if the
         # save would fail.
@@ -436,18 +434,17 @@ def notify_tag_on_add(**kwargs):
     if kwargs['action'] == 'pre_add':
         puzzle = kwargs['instance']
         pks = kwargs['pk_set']
-        prev_tag_pks = [tag.id for tag in puzzle.tags.all()]
-        for pk in pks:
-            if pk not in prev_tag_pks:
-                tag = Tag.objects.get(id=pk)
-                print("Tag %d added to puzzle %s"%(pk, puzzle.title))
-                zulip_send(user='b+status',
-                           stream="tags",
-                           subject=tag.topic(),
-                           message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
-                                   (puzzle.title, puzzle.url, puzzle.id,
-                                    settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
-                                    tag))
+        prev_tag_pks = set(puzzle.tags.values_list('id', flat=True))
+        new_tags = Tag.objects.filter(id__in=set(pks) - prev_tag_pks)  # one query for all added tags
+        for tag in new_tags:
+            print("Tag %d added to puzzle %s"%(tag.pk, puzzle.title))
+            zulip_send(user='b+status',
+                       stream="tags",
+                       subject=tag.topic(),
+                       message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
+                               (puzzle.title, puzzle.url, puzzle.id,
+                                settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
+                                tag))
 
 
 def log_on_creation(**kwargs):
@@ -456,7 +453,7 @@ def log_on_creation(**kwargs):
         entry = AccessLog(
             user=user if user is not None else User.objects.all()[0],
             puzzle=kwargs['instance'],
-            lastUpdate=datetime.now())
+            lastUpdate=now())  # timezone-aware (was a naive datetime.now())
         entry.save()
         
                 

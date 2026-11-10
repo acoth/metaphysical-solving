@@ -19,16 +19,17 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.urls import reverse
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from django.db.transaction import  non_atomic_requests
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.utils.timezone import now
 
-from puzzles.models import AccessLog, Config, JitsiRooms, Location, Priority, Puzzle, PuzzleWrongAnswer, QueuedAnswer, \
-    Round, Status, SubmittedAnswer, Tag, UploadedFile, UserProfile, QueuedHint, unloved_exempt_statuses, unloved_exempt_tags
+from puzzles.models import AccessLog, Config, Hunt, JitsiRooms, Location, Priority, Puzzle, PuzzleWrongAnswer, QueuedAnswer, \
+    Round, Status, SubmittedAnswer, Tag, UploadedFile, UserProfile, QueuedHint
 from puzzles.googlespreadsheet import get_last_revs
+from puzzles.queries import linked_out_puzzle_ids, log_summary_by_puzzle, recent_solver_counts, recent_solvers_by_puzzle
 
 from puzzles.submit import submit_answer
 from puzzles.zulip import zulip_send, zulip_user_account_active, get_user_zulip_id
@@ -154,18 +155,23 @@ def api_motd(request):
 # API endpoint for getting puzzle's solver history
 @login_required
 def api_puzzle_history(request, puzzle_id):
-    puzzle = Puzzle.objects.prefetch_related('accesslog_set').get(id=puzzle_id)
-    dedupedLogs = puzzle.all_distinct_logs()
-    countTuples = dedupedLogs.values_list("user","accumulatedMinutes")
-    displayTuples = [(User.objects.get(id=c[0]),c[1]/60.) for c in countTuples]
+    # One query for all prior viewers (user name + location joined in), one for current viewers.
+    prior_logs = (AccessLog.objects.filter(puzzle_id=puzzle_id, accumulatedMinutes__gt=0)
+                  .values_list("user_id", "user__first_name", "user__last_name",
+                               "user__userprofile__location__name", "accumulatedMinutes"))
     prior_viewers = [{
-        "id": item[0].id, 
-        "first_name": item[0].first_name,
-        "last_name": item[0].last_name,
-        "location": item[0].userprofile.location.name,
-        "hours": round(item[1], 2)
-        } for item in displayTuples if item[1]>0]
-    current_viewers = puzzle.recent_solvers().order_by('first_name', 'last_name')
+        "id": user_id,
+        "first_name": first_name,
+        "last_name": last_name,
+        "location": location,
+        "hours": round(minutes / 60., 2)
+        } for user_id, first_name, last_name, location, minutes in prior_logs]
+    current_viewers = (User.objects
+                       .filter(accesslog__puzzle_id=puzzle_id,
+                               accesslog__sessionEnd__gte=now() - timedelta(seconds=360))
+                       .distinct()
+                       .select_related('userprofile__location')
+                       .order_by('first_name', 'last_name'))
     current_viewers = [{
         "id": item.id,
         "first_name": item.first_name,
@@ -177,24 +183,84 @@ def api_puzzle_history(request, puzzle_id):
         "prior_viewers": prior_viewers,
     }) 
 
-# API endpoint for getting full overview data
+# Picks the hunt whose rounds the overview shows: ?hunt=<id> if given, else the current hunt
+# (None if there are no hunts, in which case every round is shown, as before hunts existed).
+def hunt_for_request(request):
+    hunt_id = request.GET.get('hunt')
+    if hunt_id:
+        return Hunt.objects.get(id=int(hunt_id))
+    return Hunt.current()
+
+# Orders rounds depth-first (each parent immediately followed by its children), preserving `order`
+# among siblings. Rounds whose parent isn't in the list are treated as roots. Cycle-safe.
+def rounds_depth_first(rounds):
+    by_id = {r.id: r for r in rounds}
+    children = defaultdict(list)
+    roots = []
+    for r in rounds:
+        if r.parent_round_id in by_id:
+            children[r.parent_round_id].append(r)
+        else:
+            roots.append(r)
+    ordered, seen = [], set()
+    def visit(r):
+        if r.id in seen:
+            return
+        seen.add(r.id)
+        ordered.append(r)
+        for child in children[r.id]:
+            visit(child)
+    for r in roots:
+        visit(r)
+    for r in rounds:  # anything only reachable through a cycle
+        visit(r)
+    return ordered
+
+# API endpoint for getting full overview data.
+# Runs a fixed number of queries regardless of how many rounds/puzzles there are (see
+# docs/dev-notes/plan.md section 3, and BatchedViewsTests.test_query_counts_are_constant).
 @login_required
 def api_overview(request):
-    
+    try:
+        hunt = hunt_for_request(request)
+    except (ValueError, Hunt.DoesNotExist):
+        return JsonResponse({"error": "Unknown hunt"}, status=404)
+
     overview_dict = {}
-    overview_dict["default_priority"] = str(Config.objects.get().default_priority)
-    
-    rounds = Round.objects.prefetch_related(
-     Prefetch('puzzles', queryset=Puzzle.objects.all(), to_attr='puzzle_list')
+    overview_dict["default_priority"] = str(Config.objects.select_related('default_priority').get().default_priority)
+    overview_dict["hunt"] = {"id": hunt.id, "name": hunt.name} if hunt else None
+
+    # 1 query: rounds of this hunt, plus legacy rounds not assigned to any hunt.
+    rounds_qs = Round.objects.select_related('parent_round')
+    if hunt is not None:
+        rounds_qs = rounds_qs.filter(Q(hunt=hunt) | Q(hunt__isnull=True))
+    rounds = rounds_depth_first(list(rounds_qs))
+    round_ids = [r.id for r in rounds]
+
+    # 1 query: round <-> puzzle membership, as bare id pairs.
+    RoundLink = Puzzle.rounds.through
+    links = list(RoundLink.objects.filter(round_id__in=round_ids).values_list('round_id', 'puzzle_id'))
+
+    # 2 queries: puzzles in those rounds or in no round at all, with status/priority joined and tags prefetched.
+    puzzles = list(
+        Puzzle.objects
+        .filter(Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk'), round_id__in=round_ids)))
+                | ~Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk')))))
+        .select_related('status', 'priority')
+        .prefetch_related('tags')
     )
+
+    # 2 queries: per-puzzle activity, batched.
+    solver_counts = recent_solver_counts()
+    linked_out = linked_out_puzzle_ids(request.user)
 
     def quick_puzzle_info(puzzle):
         p_info = {
             "title": puzzle.title,
             "url": puzzle.url,
             "id": puzzle.id,
-            "solver_count": puzzle.recent_count(),
-            "unopened": puzzle.unopened_theirs(request.user),
+            "solver_count": solver_counts.get(puzzle.id, 0),
+            "unopened": puzzle.id not in linked_out,
             "tags": puzzle.tag_list(),
             "description": puzzle.description,
             "priority": str(puzzle.priority),
@@ -205,6 +271,16 @@ def api_overview(request):
             p_info["status"] = str(puzzle.status)
         return (p_info)
 
+    # Build each puzzle's dict once, even if it appears in several rounds.
+    info_by_id = {puzzle.id: quick_puzzle_info(puzzle) for puzzle in puzzles}
+    position = {puzzle.id: i for i, puzzle in enumerate(puzzles)}  # Puzzle default ordering
+    puzzle_ids_by_round = defaultdict(list)
+    in_some_round = set()
+    for round_id, puzzle_id in links:
+        if puzzle_id in info_by_id:
+            puzzle_ids_by_round[round_id].append(puzzle_id)
+            in_some_round.add(puzzle_id)
+
     rounds_output = []
     for round in rounds:
         round_dict = {}
@@ -213,22 +289,22 @@ def api_overview(request):
         round_dict["description"] = round.description if round.description else ""
         if round.parent_round:
             round_dict["parent_round"] = round.parent_round.name
-        if round.puzzle_list:
-            round_dict["puzzles"] = []
-            for puzzle in round.puzzle_list:
-                round_dict["puzzles"].append(quick_puzzle_info(puzzle))
+            round_dict["parent_round_id"] = round.parent_round_id
+        member_ids = sorted(puzzle_ids_by_round[round.id], key=position.__getitem__)
+        if member_ids:
+            round_dict["puzzles"] = [info_by_id[pid] for pid in member_ids]
         rounds_output.append(round_dict)
-    
-    puzzles_without_round = Puzzle.objects.filter(rounds__isnull=True)
-    if puzzles_without_round:
+
+    unassigned = [info_by_id[p.id] for p in puzzles if p.id not in in_some_round]
+    if unassigned:
         rounds_output.append(
             {
                 "round": "Unassigned",
                 "id": "unassigned",
-                "puzzles": [quick_puzzle_info(puzzle) for puzzle in puzzles_without_round]
+                "puzzles": unassigned
             }
         )
-    
+
     overview_dict["rounds"] = rounds_output
     overview_dict["statuses"] = [str(status) for status in Status.objects.all()]
     overview_dict["priorities"] = [str(priority) for priority in Priority.objects.all()]
@@ -242,7 +318,13 @@ def build_puzzle_dict(user, puzzle_id):
     puzzle_dict["statuses"] = [str(status) for status in Status.objects.all()]
     puzzle_dict["priorities"] = [str(priority) for priority in Priority.objects.all()]
     
-    puzzle = Puzzle.objects.select_related().get(id=puzzle_id)
+    puzzle = (Puzzle.objects
+              .select_related('status', 'priority')
+              .prefetch_related('tags', 'rounds',
+                                Prefetch('queuedhint_set',
+                                         queryset=QueuedHint.objects.select_related('user').order_by('-id'),
+                                         to_attr='hints_newest_first'))
+              .get(id=puzzle_id))
 
     p_info = {
         "title": puzzle.title,
@@ -255,7 +337,7 @@ def build_puzzle_dict(user, puzzle_id):
                    "submitted": hint.submitted_ago(),
                    "urgent": hint.urgent,
                    "resolved": hint.resolved
-                  } for hint in puzzle.queuedhint_set.order_by('-id')],
+                  } for hint in puzzle.hints_newest_first],
         "tags": puzzle.tag_list(),
         "description": puzzle.description,
         "priority": str(puzzle.priority),
@@ -328,8 +410,13 @@ def api_update_puzzle (request, puzzle_id):
                     puzzle.description = data["description"]
                 if key == "tags":
                     with transaction.atomic():
-                        tags = [Tag.objects.get_or_create(name=name)[0] for name in data["tags"]]
-                        puzzle.tags.set(tags)
+                        # One query for the tags that already exist. Missing ones are created one at a
+                        # time (not bulk_create) so the new-tag post_save signal still fires.
+                        tags_by_name = {tag.name: tag for tag in Tag.objects.filter(name__in=data["tags"])}
+                        for name in data["tags"]:
+                            if name not in tags_by_name:
+                                tags_by_name[name] = Tag.objects.create(name=name)
+                        puzzle.tags.set([tags_by_name[name] for name in data["tags"]])
                 if key == "hint":
                    q = QueuedHint(puzzle=puzzle, user=request.user, details=data["hint"]["text"], urgent=data["hint"]["urgent"], resolved=False)
                    zulip_send("b+status", "puzzles", puzzle.zulip_topic(),
@@ -358,12 +445,22 @@ def api_log_a_view(request, puzzle_id):
     else:
         return HttpResponse(status=418)
 
+# Puzzles eligible for the unloved lists, with everything the lists display preloaded.
+# Config is fetched once; the exempt statuses/tags are used as subqueries.
+def unloved_candidates():
+    config = Config.objects.get()
+    return (Puzzle.objects
+            .exclude(status__in=config.unloved_exempt_status.all())
+            .exclude(tags__in=config.unloved_exempt_tags.all())
+            .select_related('status', 'priority')
+            .prefetch_related('rounds'))
+
 # API endpoint for unloved puzzles (by status)
 @login_required
 def api_unloved(request):
-    acceptable_puzzles = Puzzle.objects.exclude(status__in=unloved_exempt_statuses()).exclude(tags__in=unloved_exempt_tags())
-    last_updates = [(AccessLog.objects.filter(puzzle=p).order_by("lastUpdate").last(), p)
-                      for p in acceptable_puzzles]
+    acceptable_puzzles = list(unloved_candidates())
+    summary = log_summary_by_puzzle([p.id for p in acceptable_puzzles])
+    last_updates = [(summary[p.id]['last_log'], p) for p in acceptable_puzzles]
 
     last_updates.sort(key=lambda x: x[0].lastUpdate if x[0] else now())
     puzzles = [{"puzzle": {
@@ -380,7 +477,7 @@ def api_unloved(request):
                 "updating_username": s[0].user.first_name+" "+s[0].user.last_name if s[0] else "",
                 "updating_userid": s[0].user.id if s[0] else 0,
                 "freshness": freshness_translator(s[0]),
-                "total_time": human(timedelta(hours=spent),1,abbreviate=True,past_tense='{}') if (spent:=(s[1].effort_spent()["solver_hours"]))>0 else '',
+                "total_time": human(timedelta(hours=spent),1,abbreviate=True,past_tense='{}') if (spent:=(summary[s[1].id]['effort']["solver_hours"]))>0 else '',
                 }
                for s in last_updates]
     return JsonResponse({"puzzles": puzzles})
@@ -388,8 +485,7 @@ def api_unloved(request):
 # API endpoint for unloved puzzles (by spreadsheet)
 @login_required
 def api_unloved_by_spreadsheet(request):
-    acceptable_puzzles = Puzzle.objects.exclude(status__in=unloved_exempt_statuses()).exclude(tags__in=unloved_exempt_tags())
-    last_updates = get_last_revs(acceptable_puzzles)
+    last_updates = get_last_revs(unloved_candidates())
 
     puzzles = [{"puzzle": {
                     "id": s['puzzle'].id,
@@ -487,14 +583,19 @@ def handle_puzzle_answer_result(puzzle, answer, result):
 # Manual answer queue page
 @login_required
 def answer_queue(request):
-    qas = QueuedAnswer.objects.all()
+    qas = list(QueuedAnswer.objects.select_related('puzzle'))
+    # One query for all matching successful submissions; latest one wins if there are several
+    # (the old per-answer .get() raised MultipleObjectsReturned and showed "No" in that case).
+    submitted = {}
+    for sa in (SubmittedAnswer.objects
+               .filter(success=True, puzzle_id__in={qa.puzzle_id for qa in qas})
+               .select_related('user').order_by('timestamp', 'id')):
+        submitted[(sa.puzzle_id, sa.answer)] = sa
     for qa in qas:
-        try:
-            sa = SubmittedAnswer.objects.get(puzzle=qa.puzzle, answer=qa.answer, success=True)
-            qa.success = True
+        sa = submitted.get((qa.puzzle_id, qa.answer))
+        qa.success = sa is not None
+        if sa is not None:
             qa.user = sa.user
-        except Exception:
-            qa.success = False
     return render(request, 'puzzles/answer-queue.html', context={
                 'queued_answers': qas,
                 'refresh': 5
@@ -507,10 +608,17 @@ def handle_puzzle_hint(request, puzzle, user, details, urgent):
 
 @login_required
 def hint_queue(request):
-    queued_hints = QueuedHint.objects.all()
+    hints = list(QueuedHint.objects.select_related('user', 'puzzle__status', 'puzzle__priority'))
+    open_hints = [h for h in hints if not h.resolved]
+    puzzle_ids = {h.puzzle_id for h in open_hints}
+    summary = log_summary_by_puzzle(puzzle_ids)
+    solvers = recent_solvers_by_puzzle(puzzle_ids)
+    for h in open_hints:
+        h.effort = summary[h.puzzle_id]['effort']
+        h.recent_solvers = solvers.get(h.puzzle_id, [])
     return render(request, 'puzzles/hint-queue.html', context=base_context({
-                'queued_hints': queued_hints.filter(resolved=False),
-                'resolved_hints': queued_hints.filter(resolved=True),
+                'queued_hints': open_hints,
+                'resolved_hints': [h for h in hints if h.resolved],
                 'refresh': 5
                 }))
 
@@ -569,8 +677,9 @@ def need_zulip_login(request):
 # Who's on What page
 @login_required
 def who_what(request):
-    all_recent = AccessLog.objects.filter(lastUpdate__gte=now()-timedelta(seconds=120)).distinct()
-    jitsi_rooms = JitsiRooms.objects.all()
+    all_recent = (AccessLog.objects.filter(lastUpdate__gte=now()-timedelta(seconds=120))
+                  .distinct().select_related('user', 'puzzle'))
+    jitsi_rooms = JitsiRooms.objects.select_related('user', 'puzzle')
     rdict = defaultdict(lambda: {"puzzles": set(), "rooms": set()})
     for el in all_recent:
         rdict[el.user]["puzzles"].add(el.puzzle)
@@ -589,9 +698,7 @@ def unloved(request):
 
 @login_required
 def unloved_by_spreadsheet(request):
-  acceptable_puzzles = Puzzle.objects.exclude(status__in=unloved_exempt_statuses()).exclude(tags__in=unloved_exempt_tags())
-
-  last_updates = get_last_revs(acceptable_puzzles)
+  last_updates = get_last_revs(unloved_candidates())
     
 
   puzzles = [{"puzzle": s['puzzle'],
