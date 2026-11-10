@@ -36,7 +36,7 @@ class PuzzleAdmin(OrderedModelAdmin):
 	list_filter = ('status', 'priority', 'rounds__hunt', 'rounds')
 	search_fields = ('title', 'answer')
 	filter_horizontal = ('rounds',)
-	fields = ('title', 'url', 'status', 'priority', 'tags', 'motp', 'description', 'rounds',
+	fields = ('title', 'url', 'hunt','status', 'priority', 'tags', 'motp', 'description', 'rounds',
 			  'solvers', 'topic_name', 'spreadsheet', 'answer', 'checkAnswerLink', 'template', 'folder')
 	def get_readonly_fields(self,request, obj=None):
 		if obj:

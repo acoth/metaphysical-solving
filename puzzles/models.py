@@ -1,4 +1,4 @@
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models, ProgrammingError
 from ordered_model.models import OrderedModel
 
@@ -31,6 +31,7 @@ def quantizedTime():
     return int(time.time()/120)
 
 class Config(models.Model):
+    default_hunt = models.ForeignKey('Hunt', null=True,blank=True,on_delete=models.SET_NULL,)
     default_status = models.ForeignKey('Status', on_delete=models.CASCADE)
     default_priority = models.ForeignKey('Priority', on_delete=models.CASCADE)
     default_tag = models.ForeignKey('Tag', on_delete=models.SET_NULL,blank=True, null=True)
@@ -262,6 +263,9 @@ def defaultFolder():
         return Config.objects.get().default_folder
     except ProgrammingError:
         return None
+def defaultHunt():
+    return Config.objects.get().default_hunt
+
 def unloved_exempt_statuses():
     return Config.objects.get().unloved_exempt_status.all()
 def unloved_exempt_tags():
@@ -269,8 +273,16 @@ def unloved_exempt_tags():
 
 class Puzzle(OrderedModel):
     title = models.CharField(max_length=200)
-    url = models.URLField(unique=True)
+    url = models.URLField()
+    hunt = models.ForeignKey('Hunt', default=defaultHunt, on_delete=models.SET_DEFAULT, blank=True, null=True)
 
+    class Meta(OrderedModel.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=['url', 'hunt'],
+                name='unique_hunt_x_url'
+            )
+        ]
     status = models.ForeignKey('Status', default=defaultStatus, on_delete=models.SET_DEFAULT)
     priority = models.ForeignKey('Priority', default=defaultPriority, on_delete=models.SET_DEFAULT)
     tags = models.ManyToManyField('Tag', default=defaultTags, blank=True)
@@ -290,6 +302,12 @@ class Puzzle(OrderedModel):
                                  help_text="Template to copy when first making this puzzle.  Leave null to create from scratch.")
     folder = models.ForeignKey('PuzzleFolder',null=True,blank=True,default=defaultFolder, on_delete=models.SET_NULL,
                                help_text="Google Drive folder to use to share this puzzle spreadsheet when first making it.  Leave null to share by making world-editable instead.")
+
+    def clean(self):
+        if self.hunt_id is not None:
+            for r in self.rounds.all():
+                if not self.hunt_id == r.hunt_id:
+                    raise ValidationError("Puzzle %d  (Hunt %d) assigned to round %d (Hunt %d)are in different Hunts" % (self.id,self.hunt_id,r.id,r.hunt_id))
 
     def __str__(self):
         return self.title
