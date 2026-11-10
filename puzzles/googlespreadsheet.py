@@ -111,33 +111,24 @@ def create_google_folder(name):
     fid = folder.get("id")
     return fid
 
-# Drive's batch endpoint accepts at most this many sub-requests per batch.
-DRIVE_BATCH_LIMIT = 100
-
 def get_last_revs(acceptable_puzzles):
-  """[{'puzzle': Puzzle, 'rev': (modified datetime, revision id) or None}], oldest first, untouched last.
+  id_list = [{'id':val[0],'fileId':val[1].split('/')[-2]} for val in acceptable_puzzles.values_list('id','spreadsheet')]
 
-  The puzzles are materialized once (callers can pass a queryset with select/prefetch_related applied);
-  previously each response was mapped back with acceptable_puzzles[i], which ran one query per puzzle."""
-  from django.utils.timezone import now
-  puzzles = list(acceptable_puzzles)
-
-  revs = {}
-  def callback(request_id, response, exception):
-    if exception or not response.get("revisions"):
-      revs[request_id] = None
+  responses = []
+  def callback(cb_id, response, exception):
+    if exception:
+      responses.append((cb_id, None))
     else:
-      revs[request_id] = max([(datetime.fromisoformat(x['modifiedTime']), x['id']) for x in response["revisions"]])
+      responses.append((cb_id, max([(datetime.fromisoformat(x['modifiedTime']), x['id']) for x in response["revisions"]])))
 
   drive_service = discovery.build('drive','v3',credentials=get_google_credentials())
-  for start in range(0, len(puzzles), DRIVE_BATCH_LIMIT):
-    batch = drive_service.new_batch_http_request(callback=callback)
-    for index in range(start, min(start + DRIVE_BATCH_LIMIT, len(puzzles))):
-      file_id = puzzles[index].spreadsheet.split('/')[-2]
-      batch.add(drive_service.revisions().list(fileId=file_id), request_id=str(index))
-    batch.execute()
+  #TODO: handle more than 100 puzzles (batch size limit)
+  batch = drive_service.new_batch_http_request(callback=callback)
+  
+  for p in id_list:
+    batch.add(drive_service.revisions().list(fileId=p['fileId']))
+  batch.execute()
 
-  last_updates = [{'puzzle': p, 'rev': revs.get(str(i))} for i, p in enumerate(puzzles)]
-  # timezone-aware now(): Drive timestamps are aware, and mixing in a naive datetime.now() raised TypeError.
-  return sorted(last_updates, key=lambda x: x['rev'][0] if x['rev'] else now())
+  last_updates=[{'puzzle':acceptable_puzzles[int(resp[0])-1],'rev':resp[1]} for resp in responses]
+  return sorted(last_updates,key=lambda x: x['rev'][0] if x['rev'] else datetime.now())
     
