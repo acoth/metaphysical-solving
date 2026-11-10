@@ -2,7 +2,7 @@ import json
 
 from django.core.management.base import BaseCommand
 import django.db.utils
-from puzzles.models import Hunt, Puzzle, Tag, Status, Round
+from puzzles.models import Puzzle, Tag, Status, Round
 import re
 import json
 from bs4 import BeautifulSoup
@@ -115,10 +115,8 @@ class Command(BaseCommand):
                                     print("[%s](%s) in %s"%(puzzle_url,puzzle['title'],round['title']))
 
             else:
-                # Rounds are scoped to the current hunt so same-named rounds from past hunts aren't reused.
-                hunt = Hunt.current()
                 for round in state['rounds']:
-                    round_obj, created = Round.objects.get_or_create(hunt=hunt, name=round['title'])
+                    round_obj, created = Round.objects.get_or_create(name=round['title'])
                     #   if created:
                     #    add_tag_to_taglist(tag_obj, 'Unsolved Rounds')
                     #    add_tag_to_taglist(tag_obj, 'All Rounds')
