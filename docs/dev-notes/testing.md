@@ -22,8 +22,8 @@ Either way, external services are mocked by the tests (below), so no Zulip or Go
 `puzzles/tests.py` patches every outbound integration (`zulip_send`, `zulip_create_user`, `create_google_spreadsheet`,
 `create_google_folder`, `grant_access`) in a shared base class (`IsolatedTestCase`), so the tests never make a network call.
 
-`BatchedViewsTests.test_query_counts_are_constant` checks that the query counts of the optimized views don't grow with the
-number of puzzles, and pins the overview at 12. If you add a query to one of those views, that test will fail. Change the expected number deliberately.
+The tests use `assertNumQueries` to pin the query counts of the optimized views. If you add a query to one of those views,
+the test will fail. Change the expected number deliberately.
 
 Check migrations without touching the DB:
 
