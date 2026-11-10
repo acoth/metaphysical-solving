@@ -277,8 +277,7 @@ class Puzzle(OrderedModel):
 
     description = models.CharField(max_length=280, blank=True, help_text="Short description of the given puzzle")
 
-    rounds = models.ManyToManyField('Round', blank=True, related_name='puzzles',
-                                    help_text="The round(s) a given puzzle belongs to. A puzzle (e.g. a cross-round meta) can be in several.")
+    round = models.ForeignKey('Round', null=True, blank=True, on_delete=models.SET_NULL, help_text="The round a given puzzle belongs to.")
 
     solvers = models.ManyToManyField(User, blank=True)
     topic_name = models.CharField(max_length=200,blank=True)
@@ -296,14 +295,6 @@ class Puzzle(OrderedModel):
     
     def tag_list(self):
         return [tag.name for tag in self.tags.all()]
-
-    def round_list(self):
-        # Uses the prefetch cache when the caller did prefetch_related('rounds').
-        return list(self.rounds.all())
-
-    def round_names(self):
-        """Comma-separated round names, '' if none. Used wherever a single 'round' string used to be shown."""
-        return ', '.join(r.name for r in self.round_list())
 
     def answer_or_status(self):
         if self.answer:
@@ -399,11 +390,10 @@ class Puzzle(OrderedModel):
                        subject=self.zulip_topic(),
                        message=':thumbs_up: **%s** is correct!' % self.answer)
 
-            round_names = self.round_names()
             zulip_send(user='b+status',
                        stream='status',
                        subject='solved',
-                       message='Puzzle %s solved%s' % (self.title, ' [%s]' % round_names if round_names else ''))
+                       message='Puzzle %s solved [%s]' % (self.title, self.round))
 
 def send_puzzle_zulip(**kwargs):
     if kwargs['created']:

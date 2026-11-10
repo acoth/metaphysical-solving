@@ -55,5 +55,3 @@ Let R be the number of rounds, P the number of puzzles, and L the number of acce
   The dev server runs as `manage.py runserver 8080` (it autoreloads on code changes). The owner views it via an SSH port-forward at `localhost:8080`.
 - Migrations and tests may be run against the local Postgres DB. Take a `pg_dump` backup first (see [testing.md](testing.md)).
 - `zulip_send`, `create_google_spreadsheet`, `grant_access`, and `zulip_create_user` all hit real external services and are called from model `save()` and signal handlers.
-- `log_on_creation` creates `AccessLog(lastUpdate=datetime.now())`, a **naive** datetime with `USE_TZ` on. Django assumes it's UTC,
-  so new puzzles' "last update" is off by the server's UTC offset (it shows up as a RuntimeWarning in tests). **Fixed** in `batch-queries` by using `timezone.now()`.
