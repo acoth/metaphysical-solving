@@ -1,6 +1,6 @@
 from django.contrib import admin
 from ordered_model.admin import OrderedModelAdmin
-from puzzles.models import Hunt, Round, Status, Priority, Tag, UploadedFile, Location, Puzzle, SubmittedAnswer, \
+from puzzles.models import Round, Status, Priority, Tag, UploadedFile, Location, Puzzle, SubmittedAnswer, \
     PuzzleWrongAnswer, Config, AccessLog, JitsiRooms, PuzzleFolder, PuzzleTemplate, QueuedAnswer, QueuedHint, UserZulipStatus
 
 
@@ -12,23 +12,7 @@ admin.site.register(Priority, SlugAdmin)
 
 class ItemAdmin(OrderedModelAdmin):
 	list_display = ('name', 'move_up_down_links')
-class RoundInline(admin.TabularInline):
-	model = Round
-	fields = ('name', 'parent_round', 'description')
-	extra = 0
-	show_change_link = True
-
-class HuntAdmin(OrderedModelAdmin):
-	list_display = ('name', 'is_current', 'move_up_down_links')
-	inlines = [RoundInline]
-admin.site.register(Hunt, HuntAdmin)
-
-class RoundAdmin(OrderedModelAdmin):
-	list_display = ('name', 'hunt', 'parent_round', 'move_up_down_links')
-	list_filter = ('hunt',)
-	list_select_related = ('hunt', 'parent_round')
-	fields = ('hunt', 'name', 'parent_round', 'description')
-admin.site.register(Round, RoundAdmin)
+admin.site.register(Round, ItemAdmin)
 admin.site.register(Tag, ItemAdmin)
 admin.site.register(Location, ItemAdmin)
 class PuzzleAdmin(OrderedModelAdmin):

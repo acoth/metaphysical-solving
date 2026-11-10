@@ -91,52 +91,10 @@ class Priority(OrderedModel):
         return self.text
     
 
-# A Mystery Hunt (e.g. "MIT Mystery Hunt 2027"). Contains rounds via `hunt.rounds`; the top-level ones
-# (no parent_round) are returned by `top_level_rounds()`. At most one hunt is marked `is_current`, and
-# that is the one the overview page shows by default.
-class Hunt(OrderedModel):
-    name = models.CharField(max_length=255)
-    url = models.URLField(blank=True, help_text="Hunt website, for reference.")
-    is_current = models.BooleanField(default=False,
-                                     help_text="The hunt being solved right now. Only one hunt can be current; "
-                                               "marking this one current un-marks the others.")
-
-    class Meta(OrderedModel.Meta):
-        constraints = [
-            models.UniqueConstraint(fields=['is_current'], condition=models.Q(is_current=True),
-                                    name='only_one_current_hunt'),
-        ]
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def current(cls):
-        return cls.objects.filter(is_current=True).first()
-
-    def top_level_rounds(self):
-        return self.rounds.filter(parent_round__isnull=True)
-
-    def save(self, *args, **kwargs):
-        if self.is_current:
-            # Clear the flag on every other hunt first so the partial unique constraint holds.
-            Hunt.objects.filter(is_current=True).exclude(pk=self.pk).update(is_current=False)
-        super().save(*args, **kwargs)
-
-
 # A single puzzle round, has a name, a description, and a reference to the parent round (parent_round),
 # which can be empty. If a round is a parent to multiple rounds, then `child_rounds` field will retrieve
-# them all. Every round, top-level or nested, records the hunt it belongs to; child rounds inherit their
-# parent's hunt automatically on save, so "all rounds of a hunt" is a single flat query.
+# them all.
 class Round(OrderedModel):
-    hunt = models.ForeignKey(
-        'Hunt',
-        on_delete=models.SET_NULL,
-        related_name='rounds',
-        blank=True,
-        null=True,
-        help_text="Hunt this round belongs to. Nested rounds inherit their parent round's hunt."
-    )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     parent_round = models.ForeignKey(
@@ -146,33 +104,8 @@ class Round(OrderedModel):
         blank=True,
         null=True
     )
-
     def __str__(self):
         return self.name
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.parent_round_id is None:
-            return
-        if self.hunt_id is not None and self.parent_round.hunt_id not in (None, self.hunt_id):
-            raise ValidationError({'parent_round': "Parent round belongs to a different hunt."})
-        # Walk up the ancestor chain to reject cycles (a round can't be its own ancestor).
-        seen = set()
-        ancestor = self.parent_round
-        while ancestor is not None:
-            if self.pk is not None and ancestor.pk == self.pk:
-                raise ValidationError({'parent_round': "A round can't be nested inside itself."})
-            if ancestor.pk in seen:
-                break
-            seen.add(ancestor.pk)
-            ancestor = ancestor.parent_round
-
-    def save(self, *args, **kwargs):
-        if self.parent_round_id is not None:
-            parent_hunt_id = Round.objects.filter(pk=self.parent_round_id).values_list('hunt_id', flat=True).first()
-            if parent_hunt_id is not None:
-                self.hunt_id = parent_hunt_id
-        super().save(*args, **kwargs)
 
 class Tag(OrderedModel):
     name = models.CharField(max_length=200, unique=True)
