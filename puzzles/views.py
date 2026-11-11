@@ -419,7 +419,7 @@ def api_update_puzzle (request, puzzle_id):
                         puzzle.tags.set([tags_by_name[name] for name in data["tags"]])
                 if key == "hint":
                    q = QueuedHint(puzzle=puzzle, user=request.user, details=data["hint"]["text"], urgent=data["hint"]["urgent"], resolved=False)
-                   zulip_send("b+status", "puzzles", puzzle.zulip_topic(),
+                   zulip_send("b+status", "puzzles"+puzzle.zulip_stream_suffix(), puzzle.zulip_topic(),
                               "**%s requested a hint:**\n>%s" % (q.user.get_full_name(),q.details))
                    q.save()
                 if key == "hint_resolution":
@@ -427,7 +427,7 @@ def api_update_puzzle (request, puzzle_id):
                    q.resolved = True
                    q.response = data["hint_resolution"]["response"]
                    q.save()
-                   zulip_send("b+status","puzzles", puzzle.zulip_topic(),
+                   zulip_send("b+status","puzzles"+puzzle.zulip_stream_suffix(), puzzle.zulip_topic(),
                                "**Hint request resolved!**\n*We asked:*\n>%s\n\n*...and they replied:*\n>%s"%(q.details, q.response))
 
             puzzle.save()
@@ -555,7 +555,7 @@ def handle_puzzle_answer(puzzle, user, answer, backsolved, phone, request):
     submit_answer(submission, request)
     submission.success = True
     submission.save()
-    zulip_send('b+status', puzzle.zulip_stream(), 'Calling in...',
+    zulip_send('b+status', puzzle.zulip_stream_suffix(), puzzle.zulip_topic(),
                ':telephone: %s %s called in %s' %
                (user.first_name, user.last_name, answer))
 
