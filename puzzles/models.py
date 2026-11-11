@@ -518,7 +518,7 @@ class UserProfile(models.Model):
 
     location = models.ForeignKey('Location', on_delete=models.CASCADE)
     picture = models.TextField(null=True, blank=True)
-
+    active_hunt = models.ForeignKey('Hunt', on_delete=models.SET_NULL, null=True, blank=True)
 
 def make_user_profile(**kwargs):
     user = kwargs['instance']

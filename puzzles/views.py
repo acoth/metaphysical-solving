@@ -84,6 +84,7 @@ def base_context(d = {}):
     d1['locations'] = Location.objects.all()
     d1['zulip_url'] = settings.ZULIP_SERVER_URL
     d1['admin_link']=settings.SHOW_ADMIN_LINK
+    d1['hunts'] = Hunt.objects.all()
     return d1
 
 # An API endpoint for updating user location
@@ -97,6 +98,20 @@ def api_user_location(request):
         # Re-retrieve the location from the database
         updated_location = request.user.userprofile.location
         return JsonResponse({"location": updated_location.name})
+
+    return JsonResponse({"error": "Invalid request method"}, status=400)
+
+# An API endpoint for updating user location
+@login_required
+def api_user_hunt(request):
+    if request.method == "POST":
+        hunt = Hunt.objects.get(name=request.POST['hunt'])
+        request.user.userprofile.active_hunt = hunt
+        request.user.userprofile.save()
+
+        # Re-retrieve the location from the database
+        updated_hunt = request.user.userprofile.active_hunt
+        return JsonResponse({"hunt": updated_hunt.name})
 
     return JsonResponse({"error": "Invalid request method"}, status=400)
 
@@ -510,7 +525,8 @@ def api_unloved_by_spreadsheet(request):
 @login_required
 @user_passes_test(zulip_user_account_active,login_url='puzzles.views.need_zulip_login')
 def overview(request):
-    return render(request, "puzzles/overview.html", context=base_context())
+    hunt_requested = UserProfile.objects.get(user=request.user).active_hunt_id
+    return render(request, "puzzles/overview.html", context=base_context({"hunt":hunt_requested}))
 
 # Single puzzle page
 @login_required
@@ -543,8 +559,8 @@ def puzzle_spreadsheet(request, puzzle_id):
 # Redirector to the puzzle's Zulip chat
 @login_required
 def puzzle_chat(request, puzzle_id):
-    topic = Puzzle.objects.get(id=puzzle_id).zulip_topic()
-    return redirect("%s/#narrow/stream/puzzles/topic/%s" % (settings.ZULIP_SERVER_URL,topic))
+    puzz = Puzzle.objects.get(id=puzzle_id)
+    return redirect("%s/#narrow/stream/puzzles-%s/topic/%s" % (settings.ZULIP_SERVER_URL,puzz.zulip_stream_suffix(),puzz.zulip_topic()))
 
 # Used for the main answer queue page to manage answer queue manually
 def handle_puzzle_answer(puzzle, user, answer, backsolved, phone, request):

@@ -568,7 +568,8 @@
       // Function to fetch and update data
       async function fetchAndUpdate() {
           try {
-              const response = await fetch("{% url 'puzzles.views.api_overview' %}", {
+              const response = await fetch("{% url 'puzzles.views.api_overview' %}" +
+                      "{% if hunt %}?hunt={{hunt}}{% endif %}", {
                 method: "POST",
                 headers: {
                     "X-CSRFToken": "{{ csrf_token }}",
