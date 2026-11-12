@@ -205,9 +205,9 @@
       <div class="user-info">
         <span class="username">{{ user.first_name }}</span>
         <span class="location" id="user-location">{{ user.userprofile.location }}</span>
-        <span class="location" id="user-hunt">
-          {% if user.userprofile.active_hunt %}{{ user.userprofile.active_hunt }}
-            {% else %} --current-- {% endif %}</span>
+        {% if user.userprofile.active_hunt %} <span class="location" id="user-hunt">
+          {{ user.userprofile.active_hunt }}
+            </span>{% endif %}
       </div>
       {% if user.userprofile.picture %}
         <img class="user-avatar" src="/profile_photo" />
@@ -239,7 +239,7 @@
         <div class="selectwrap">
         <select onchange="changeUserLocation()" id="location-select" name="location">
              {% for location in locations %}
-                 <option{% if location == user.userprofile.location %} selected="true"{% endif %}>{{ location.name }}</option>
+                 <option{% if location == user.userprofile.location %} selected="true"{% endif %} >{{ location.name }}</option>
              {% endfor %}
         </select>
         <i class="ti ti-chevron-down select-icon"></i>
