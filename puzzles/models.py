@@ -334,7 +334,10 @@ class Puzzle(OrderedModel):
 
     def zulip_stream_suffix(self):
         if not self.stream_suffix:
-            self.stream_suffix = "-of-%s-%d"%(slugify(self.hunt.name),self.hunt.id)
+            if self.hunt:
+                self.stream_suffix = "-of-%s-%d"%(slugify(self.hunt.name),self.hunt.id)
+            else:
+                self.stream_suffix = "-of-no-hunt"
         return self.stream_suffix
 
     def zulip_topic(self):

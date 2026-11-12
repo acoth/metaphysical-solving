@@ -74,7 +74,7 @@
             const hunt_select = document.getElementById('hunt-select');
 
             const formData = new FormData();
-            if (hunt_select.value == "--current--")
+            if (hunt_select.value.startsWith("--current--"))
                     formData.append('hunt', "");
             else
             formData.append('hunt', hunt_select.value);
@@ -205,9 +205,10 @@
       <div class="user-info">
         <span class="username">{{ user.first_name }}</span>
         <span class="location" id="user-location">{{ user.userprofile.location }}</span>
-        {% if user.userprofile.active_hunt %} <span class="location" id="user-hunt">
+         <span class="location" id="user-hunt">{% if user.userprofile.active_hunt %}
           {{ user.userprofile.active_hunt }}
-            </span>{% endif %}
+        {% else %} <i>--current--</i> ({{current_hunt}})
+           {% endif %} </span>
       </div>
       {% if user.userprofile.picture %}
         <img class="user-avatar" src="/profile_photo" />
@@ -249,7 +250,7 @@
       <div class="user-popup-location-header">Change your Hunt:</div>
         <div class="selectwrap">
         <select onchange="changeUserHunt()" id="hunt-select" name="hunt">
-              <option {% if not hunt %} selected="true"{% endif %}>--current--</option>
+              <option {% if not hunt %} selected="true"{% endif %}> --current-- ({{current_hunt}}) </option>
              {% for hunt in hunts %}
                  <option {% if hunt == user.userprofile.active_hunt %} selected="true"{% endif %}>{{ hunt.name }}</option>
              {% endfor %}

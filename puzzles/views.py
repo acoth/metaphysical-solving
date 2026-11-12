@@ -85,6 +85,7 @@ def base_context(d = {}):
     d1['zulip_url'] = settings.ZULIP_SERVER_URL
     d1['admin_link']=settings.SHOW_ADMIN_LINK
     d1['hunts'] = Hunt.objects.all()
+    d1['current_hunt'] = Hunt.current()
     return d1
 
 # An API endpoint for updating user location
@@ -533,7 +534,8 @@ def api_unloved_by_spreadsheet(request):
 @user_passes_test(zulip_user_account_active,login_url='puzzles.views.need_zulip_login')
 def overview(request):
     hunt_requested = UserProfile.objects.get(user=request.user).active_hunt_id
-    return render(request, "puzzles/overview.html", context=base_context({"hunt":hunt_requested}))
+    return render(request, "puzzles/overview.html",
+                  context=base_context({"hunt":hunt_requested,}))
 
 # Single puzzle page
 @login_required

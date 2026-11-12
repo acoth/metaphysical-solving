@@ -6,7 +6,14 @@
 
 {% block content %}
 <div id="content">
-<div class="filtered-view-announcement hidden">
+{% if not hunt and not current_hunt %}
+  <div style="text-align: center;">
+    You have selected to work on the "current" Hunt, but no Hunt is configured as current in the database at the moment.<br/>
+    Please select a specific Hunt (in the User Profile)
+  </div>
+  <{% else %}
+
+  <div class="filtered-view-announcement hidden">
   <i class="ti ti-filter"></i>
     Filtered View (<span class="reset-filters-link" onClick="resetFilters()">Reset</span>)
 </div>
@@ -81,6 +88,7 @@
           </div>
         </div>
 </div>
+  {% endif %}
 </div>
 <script>
     // TODO
