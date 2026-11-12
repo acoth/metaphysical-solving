@@ -105,13 +105,20 @@ def api_user_location(request):
 @login_required
 def api_user_hunt(request):
     if request.method == "POST":
-        hunt = Hunt.objects.get(name=request.POST['hunt'])
+        new_value = request.POST['hunt']
+        if new_value:
+            hunt = Hunt.objects.get(name=new_value)
+        else:
+            hunt = None
         request.user.userprofile.active_hunt = hunt
         request.user.userprofile.save()
 
         # Re-retrieve the location from the database
         updated_hunt = request.user.userprofile.active_hunt
-        return JsonResponse({"hunt": updated_hunt.name})
+        if updated_hunt:
+            return JsonResponse({"hunt": updated_hunt.name})
+        else:
+            return JsonResponse({"hunt": "--current--"})
 
     return JsonResponse({"error": "Invalid request method"}, status=400)
 

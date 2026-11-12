@@ -74,6 +74,9 @@
             const hunt_select = document.getElementById('hunt-select');
 
             const formData = new FormData();
+            if (hunt_select.value == "--current--")
+                    formData.append('hunt', "");
+            else
             formData.append('hunt', hunt_select.value);
 
             fetch("{% url 'puzzles.views.user_hunt' %}", {
@@ -92,6 +95,7 @@
                 .then(data => {
                     if (data.hunt) {
                         document.getElementById('user-hunt').textContent = data.hunt;
+                        location.reload();
                     } else {
                         console.error("Error in response:", data.error);
                     }
@@ -201,6 +205,9 @@
       <div class="user-info">
         <span class="username">{{ user.first_name }}</span>
         <span class="location" id="user-location">{{ user.userprofile.location }}</span>
+        <span class="location" id="user-hunt">
+          {% if user.userprofile.active_hunt %}{{ user.userprofile.active_hunt }}
+            {% else %} --current-- {% endif %}</span>
       </div>
       {% if user.userprofile.picture %}
         <img class="user-avatar" src="/profile_photo" />
@@ -242,6 +249,7 @@
       <div class="user-popup-location-header">Change your Hunt:</div>
         <div class="selectwrap">
         <select onchange="changeUserHunt()" id="hunt-select" name="hunt">
+              <option {% if not hunt %} selected="true"{% endif %}>--current--</option>
              {% for hunt in hunts %}
                  <option {% if hunt == user.userprofile.active_hunt %} selected="true"{% endif %}>{{ hunt.name }}</option>
              {% endfor %}

@@ -525,7 +525,7 @@ def make_user_profile(**kwargs):
     default_location = Location.objects.get(name='unknown')
     user_profile, _ = UserProfile.objects.get_or_create(
         user=user,
-        defaults={'location': default_location})
+        defaults={'location': default_location,'active_hunt':Hunt.current()})
     grant_access((folder.fid for folder in PuzzleFolder.objects.filter(shareOnly__isnull=True)),[user.email])
     user_zulip_status, _ = UserZulipStatus.objects.get_or_create(user=user)
     if user_zulip_status.status == UserZulipStatus.NONE \
