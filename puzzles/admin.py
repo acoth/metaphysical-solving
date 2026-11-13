@@ -39,6 +39,11 @@ class RoundAdmin(OrderedModelAdmin):
 			return qs.filter(hunt=active_hunt)
 		else:
 			return qs
+	def get_changeform_initial_data(self, request):
+		initial = super().get_changeform_initial_data(request)
+		initial['hunt'] = UserProfile.objects.get(user=request.user).active_hunt.id \
+			if UserProfile.objects.get(user=request.user).active_hunt else None
+		return initial
 
 	#list_filter = ('hunt',)
 	list_select_related = ('hunt', 'parent_round')
@@ -68,6 +73,11 @@ class PuzzleAdmin(OrderedModelAdmin):
 			else:
 				kwargs["queryset"] = Round.objects.all()
 		return super().formfield_for_manytomany(db_field, request, **kwargs)
+	def get_changeform_initial_data(self, request):
+		initial = super().get_changeform_initial_data(request)
+		initial['hunt'] = UserProfile.objects.get(user=request.user).active_hunt.id \
+			if UserProfile.objects.get(user=request.user).active_hunt else None
+		return initial
 
 	def get_readonly_fields(self,request, obj=None):
 		if obj:
