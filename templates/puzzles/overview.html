@@ -200,7 +200,7 @@
       if (collapsed_rounds.includes(''+round_id)) {
         document.getElementById(`round-block-${round_id}`).classList.remove("collapsed");
         r_index = collapsed_rounds.indexOf(''+round_id);
-        collapsed_rounds.splice(r_index);
+        collapsed_rounds.splice(r_index, 1);
       }
       else {
         document.getElementById(`round-block-${round_id}`).classList.add("collapsed");
@@ -473,7 +473,7 @@
         let puzzle_priority = puzzle.priority ? puzzle.priority.replace(/!/g, '') : "normal";
       
         return `
-            <div class="puzzle ${puzzle.tags.includes("meta") ? "meta" : ''} ${puzzle.tags.includes("capstone") ? 'capstone' : ''} ${puzzle.unopened ? 'unopened' : ''} ${puzzle_priority}-priority-puzzle">
+            <div class="puzzle ${puzzle.tags.includes("meta") ? "meta" : ''} ${puzzle.tags.includes("capstone") ? 'capstone' : ''} ${puzzle.unopened ? 'unopened' : ''} ${puzzle.answer ? 'solved' : ''} ${puzzle_priority}-priority-puzzle">
                 <div class="puzzle-top">
                   <div class="puzzle-header">
                     <a href="/puzzle/${puzzle.id}" target="_blank"><span class="puzzle-title">${puzzle.title}</span></a>
@@ -509,32 +509,84 @@
         `;
     }
 
-    // Template function for a round
-    function renderRound(round, parentRound = null, collapsed = false) {
-        const roundTitle = parentRound ? `${parentRound}<i class="ti ti-chevron-right round-chevron"></i>${round.round}` : round.round;
+    // Deepest nesting we style distinctly; anything deeper reuses the last level's look.
+    const MAX_STYLED_DEPTH = 4;
+
+    // Build {roots, children} from the flat, depth-first round list the API returns.
+    function buildRoundTree(rounds) {
+        const byId = new Map(rounds.map(r => [String(r.id), r]));
+        const children = new Map();
+        const roots = [];
+        rounds.forEach(r => {
+            const parentId = r.parent_round_id != null ? String(r.parent_round_id) : null;
+            if (parentId && byId.has(parentId)) {
+                if (!children.has(parentId)) children.set(parentId, []);
+                children.get(parentId).push(r);
+            } else {
+                roots.push(r);
+            }
+        });
+        return {roots, children};
+    }
+
+    function puzzleIsVisible(puzzle) {
+        return (((puzzle.status && !hide_items.statuses.includes(puzzle.status)) ||
+                 (puzzle.answer && !hide_items.statuses.includes("solved!"))) &&
+                (puzzle.priority && !hide_items.priorities.includes(puzzle.priority)));
+    }
+
+    // Returns {html, solvedIds, allIds} for a round and everything nested in it (ids are Sets, so a
+    // puzzle in several nested rounds counts once), or null if
+    // nothing in it is visible under the current filters. A round hidden by the round filter
+    // drops its own puzzles but still shows any visible child rounds.
+    function renderRoundTree(round, tree, depth, seen) {
+        const key = String(round.id);
+        if (seen.has(key)) return null;  // guard against parent cycles
+        seen.add(key);
+
         const getPriority = (tags) =>
           tags.includes("meta") ? 0 : tags.includes("capstone") ? 1 : 2;
-        const sortedPuzzles = [...round.puzzles].sort((a, b) => getPriority(a.tags) - getPriority(b.tags));
-        return `
-          <div class="roundwrapper">
-            <div class="round ${collapsed ? 'collapsed' : ''}" id="round-block-${round.id}">
+        const ownPuzzles = (round.puzzles && !hide_items.rounds.includes(round.round))
+            ? round.puzzles.filter(puzzleIsVisible).sort((a, b) => getPriority(a.tags) - getPriority(b.tags))
+            : [];
+
+        const allIds = new Set(ownPuzzles.map(p => p.id));
+        const solvedIds = new Set(ownPuzzles.filter(p => p.answer).map(p => p.id));
+        const childHtml = [];
+        (tree.children.get(key) || []).forEach(child => {
+            const rendered = renderRoundTree(child, tree, depth + 1, seen);
+            if (rendered) {
+                childHtml.push(rendered.html);
+                rendered.allIds.forEach(id => allIds.add(id));
+                rendered.solvedIds.forEach(id => solvedIds.add(id));
+            }
+        });
+        if (ownPuzzles.length === 0 && childHtml.length === 0) return null;
+
+        const collapsed = collapsed_rounds.includes(key);
+        const styleDepth = Math.min(depth, MAX_STYLED_DEPTH);
+        const solved = solvedIds.size, total = allIds.size;
+        const html = `
+            <div class="round depth-${styleDepth} ${depth > 1 ? 'child-round' : ''} ${collapsed ? 'collapsed' : ''}" id="round-block-${round.id}">
                 <div class="round-header">
                     <div class="round-header-left">
-                    <div class="round-title">${roundTitle}</div>
+                    <div class="round-title">${round.round}</div>
                     ${round.description ? `<div class="round-description">${round.description}</div>` : ''}
                     </div>
                     <div class="round-header-right">
+                      <span class="round-progress ${solved === total ? 'complete' : ''}" title="Solved puzzles in this round and its sub-rounds">${solved}/${total} solved</span>
                       <button class="collapse-round-button" onClick="toggleRound('${round.id}')"><i class="ti ti-chevron-down collapse-chevron"></i></button>
                     </div>
                 </div>
-                ${sortedPuzzles ? `
-                    <div class="puzzle-list">
-                        ${sortedPuzzles.map(puzzle => renderPuzzle(puzzle)).join('')}
-                    </div>
-                ` : ''}
-            </div>
-          </div>
-        `;
+                <div class="round-body">
+                    ${ownPuzzles.length ? `
+                        <div class="puzzle-grid">
+                            ${ownPuzzles.map(puzzle => renderPuzzle(puzzle)).join('')}
+                        </div>` : ''}
+                    ${childHtml.join('')}
+                </div>
+            </div>`;
+        return {html: depth === 1 ? `<div class="roundwrapper">${html}</div>` : html, solvedIds, allIds};
     }
 
     // Function to render the dashboard
@@ -550,25 +602,14 @@
         filteredView ? document.querySelector('.filtered-view-announcement').classList.remove("hidden") :
                        document.querySelector('.filtered-view-announcement').classList.add("hidden");
 
-        // Process parent-child relationships
         collapsed_rounds = JSON.parse(localStorage.getItem('collapsedRounds')) || collapsed_rounds;
-        data.rounds.forEach(round => {
-            parent_round = round.parent_round ? round.parent_round : null;
-            if (round.puzzles && !hide_items["rounds"].includes(round.round)) {
-                let filtered_puzzles = round.puzzles.filter((puzzle) => {
-                  return (((puzzle.status && !hide_items.statuses.includes(puzzle.status)) ||
-                          (puzzle.answer && !hide_items.statuses.includes("solved!"))) &&
-                          (puzzle.priority && !hide_items.priorities.includes(puzzle.priority))
-                         )
-                });
-                if (filtered_puzzles.length > 0) {
-                  let round_copy = {...round};
-                  round_copy.puzzles = filtered_puzzles;
-                  html += renderRound(round_copy, parent_round, collapsed_rounds.includes(''+round_copy.id));
-                }
-            }
+        const tree = buildRoundTree(data.rounds);
+        const seen = new Set();
+        tree.roots.forEach(round => {
+            const rendered = renderRoundTree(round, tree, 1, seen);
+            if (rendered) html += rendered.html;
         });
-        
+
         container.innerHTML = html;
         document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
     }

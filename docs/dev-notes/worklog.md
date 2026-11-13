@@ -118,3 +118,23 @@ Fix: branch `reland-hunt-rounds-batch` from `origin/master`. It reverts the reve
 The resulting tree equals `batch-queries` plus `Dev Setup.md`. 23 tests OK on SQLite and on Postgres. `zulip-hunt-mods` merges onto it cleanly.
 After it merges: close #8 and #9, and delete `hunt-model`, `multi-round-puzzles`, `batch-queries` and `revert-*` on GitHub.
 Then open `zulip-hunt-mods` → `master`.
+
+## 2026-11-13: branch `nested-overview` (from master @ 77d7b31), visual draft for review
+
+Goal: nested rounds show *inside* their parent on the overview (up to 4 levels), and puzzles are individual tiles.
+
+- Frontend only (`templates/puzzles/overview.html` and `puzzles/static/css/base.css`). `/api_overview` already returns every round with
+  `parent_round_id`, including empty parents.
+- `buildRoundTree()` builds the tree from the flat round list. `renderRoundTree()` renders recursively: a round's body shows its own
+  puzzle tiles (CSS grid, `minmax(9.5rem, 1fr)`) and then its child rounds as inset boxes.
+  A round is shown if it has any visible puzzle at any depth. Hiding a round with the round filter hides only its own puzzles; its children still show.
+  It's guarded against parent cycles. Depth classes `depth-1`..`depth-4`; deeper levels reuse depth 4's look.
+- Each header has a "solved/total" pill that counts that round and everything under it, with distinct puzzle ids so shared puzzles count once.
+  Solved tiles are tinted green; meta, capstone and unopened keep their old looks.
+- Fixed `toggleRound` (`splice(i)` → `splice(i, 1)`): expanding one round no longer forgets every round collapsed after it.
+- Cache-buster for `base.css` bumped `?1` → `?2`.
+- Demo data on the local DB: "Nesting Demo" (4 levels, 14 puzzles, every status). Created with a scratch script that stubs out Zulip
+  and Google. Every demo puzzle URL starts with `https://nesting-demo.invalid/`. Backup taken first:
+  `~/backups/puzzle_db_pre-nesting-demo_20261113-044430.dump`.
+- Checked with no browser available: the page's JS ran in QuickJS against the real `/api_overview` JSON. Nesting, totals, filters and
+  collapse behaved as expected. 23 tests OK.
