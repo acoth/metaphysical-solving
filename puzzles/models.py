@@ -277,7 +277,8 @@ class Puzzle(OrderedModel):
 
     description = models.CharField(max_length=280, blank=True, help_text="Short description of the given puzzle")
 
-    round = models.ForeignKey('Round', null=True, blank=True, on_delete=models.SET_NULL, help_text="The round a given puzzle belongs to.")
+    rounds = models.ManyToManyField('Round', blank=True, related_name='puzzles',
+                                    help_text="The round(s) a given puzzle belongs to. A puzzle (e.g. a cross-round meta) can be in several.")
 
     solvers = models.ManyToManyField(User, blank=True)
     topic_name = models.CharField(max_length=200,blank=True)
@@ -295,6 +296,14 @@ class Puzzle(OrderedModel):
     
     def tag_list(self):
         return [tag.name for tag in self.tags.all()]
+
+    def round_list(self):
+        # Uses the prefetch cache when the caller did prefetch_related('rounds').
+        return list(self.rounds.all())
+
+    def round_names(self):
+        """Comma-separated round names, '' if none. Used wherever a single 'round' string used to be shown."""
+        return ', '.join(r.name for r in self.round_list())
 
     def answer_or_status(self):
         if self.answer:
@@ -363,12 +372,10 @@ class Puzzle(OrderedModel):
         return User.objects.filter(id__in=[urec["user"] for urec in logs.order_by("user").values("user").distinct()])
 
     def save(self, *args, **kwargs):
-        # Grab old instance to see if our answer is new.
-        try:
-            old_puzzle = Puzzle.objects.get(id=self.id)
-            old_answer = old_puzzle.answer
-        except Puzzle.DoesNotExist:
-            old_answer = ''
+        # Grab the old answer (only that column) to see if our answer is new.
+        old_answer = ''
+        if self.pk is not None:
+            old_answer = Puzzle.objects.filter(pk=self.pk).values_list('answer', flat=True).first() or ''
 
         # Save first, so that we don't create a new spreadsheet if the
         # save would fail.
@@ -390,10 +397,11 @@ class Puzzle(OrderedModel):
                        subject=self.zulip_topic(),
                        message=':thumbs_up: **%s** is correct!' % self.answer)
 
+            round_names = self.round_names()
             zulip_send(user='b+status',
                        stream='status',
                        subject='solved',
-                       message='Puzzle %s solved [%s]' % (self.title, self.round))
+                       message='Puzzle %s solved%s' % (self.title, ' [%s]' % round_names if round_names else ''))
 
 def send_puzzle_zulip(**kwargs):
     if kwargs['created']:
@@ -426,18 +434,17 @@ def notify_tag_on_add(**kwargs):
     if kwargs['action'] == 'pre_add':
         puzzle = kwargs['instance']
         pks = kwargs['pk_set']
-        prev_tag_pks = [tag.id for tag in puzzle.tags.all()]
-        for pk in pks:
-            if pk not in prev_tag_pks:
-                tag = Tag.objects.get(id=pk)
-                print("Tag %d added to puzzle %s"%(pk, puzzle.title))
-                zulip_send(user='b+status',
-                           stream="tags",
-                           subject=tag.topic(),
-                           message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
-                                   (puzzle.title, puzzle.url, puzzle.id,
-                                    settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
-                                    tag))
+        prev_tag_pks = set(puzzle.tags.values_list('id', flat=True))
+        new_tags = Tag.objects.filter(id__in=set(pks) - prev_tag_pks)  # one query for all added tags
+        for tag in new_tags:
+            print("Tag %d added to puzzle %s"%(tag.pk, puzzle.title))
+            zulip_send(user='b+status',
+                       stream="tags",
+                       subject=tag.topic(),
+                       message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
+                               (puzzle.title, puzzle.url, puzzle.id,
+                                settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
+                                tag))
 
 
 def log_on_creation(**kwargs):
@@ -446,7 +453,7 @@ def log_on_creation(**kwargs):
         entry = AccessLog(
             user=user if user is not None else User.objects.all()[0],
             puzzle=kwargs['instance'],
-            lastUpdate=datetime.now())
+            lastUpdate=now())  # timezone-aware (was a naive datetime.now())
         entry.save()
         
                 

@@ -66,14 +66,14 @@
             <div class="badge-line">Hint urgency: <span class="heavy">{{ hint.urgent|yesno:"high,normal" }}</span></div>
             <div class="badge-line">Puzzle priority: <span class="heavy">{{ hint.puzzle.priority }}</span></div>
           <div class="badge-line">Puzzle status: <span class="heavy">{{ hint.puzzle.status }}</span></div>
-          <div class="badge-line">Total Solvers: <span class="heavy">{{ hint.puzzle.effort_spent.solvers }}</span></div>
-          <div class="badge-line">Person-hours spent: <span class="heavy">{{ hint.puzzle.effort_spent.solver_hours }}</span></div>
+          <div class="badge-line">Total Solvers: <span class="heavy">{{ hint.effort.solvers }}</span></div>
+          <div class="badge-line">Person-hours spent: <span class="heavy">{{ hint.effort.solver_hours }}</span></div>
            </div>
           <div class="triage-badge" style="width:60%;">
             <div class="badge-line"><i class="ti ti-users"></i> Current solvers</div>
             <div class="triage-solvers">
-              {{ hint.puzzle.recent_solvers|yesno:",None" }}
-              {% for solver in hint.puzzle.recent_solvers %}
+              {{ hint.recent_solvers|yesno:",None" }}
+              {% for solver in hint.recent_solvers %}
                 <span class="triage-solver"><img class="profile-pic" src="/profile_photo/{{ solver.id }}"/>&nbsp;{{solver.first_name}} {{solver.last_name}}</span>
              {% endfor %}         
             </div>
