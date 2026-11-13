@@ -126,7 +126,7 @@ Goal: nested rounds show *inside* their parent on the overview (up to 4 levels),
 - Frontend only (`templates/puzzles/overview.html` and `puzzles/static/css/base.css`). `/api_overview` already returns every round with
   `parent_round_id`, including empty parents.
 - `buildRoundTree()` builds the tree from the flat round list. `renderRoundTree()` renders recursively: a round's body shows its own
-  puzzle tiles (CSS grid, `minmax(9.5rem, 1fr)`) and then its child rounds as inset boxes.
+  puzzles, each as its own full-width box (an earlier multi-per-row tile grid was rejected by the owner as too cramped) and then its child rounds as inset boxes.
   A round is shown if it has any visible puzzle at any depth. Hiding a round with the round filter hides only its own puzzles; its children still show.
   It's guarded against parent cycles. Depth classes `depth-1`..`depth-4`; deeper levels reuse depth 4's look.
 - Each header has a "solved/total" pill that counts that round and everything under it, with distinct puzzle ids so shared puzzles count once.
