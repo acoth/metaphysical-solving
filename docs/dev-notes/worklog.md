@@ -102,3 +102,19 @@ Verified: 23 tests OK (`--settings=solving.test_settings`), `makemigrations --ch
   (34 round blocks incl. Unassigned, 262 puzzle entries); unloved 4; api_puzzle 11; history 2; answer queue 3; hint queue 2; who's-on-what 3.
 - Postgres tests: at first blocked because the `puzzle` role lacked CREATEDB. After the owner granted it: `manage.py test puzzles --noinput` gives 23 tests, OK, on Postgres (≈13 s). The SQLite suite also passes.
 - The notes were corrected via a commit on `hunt-model` (they had assumed this was production); `multi-round-puzzles` and `batch-queries` were rebased onto it.
+
+## 2026-11-13: re-landing #3–#5 after the stacked-merge mix-up
+
+What happened on GitHub (2026-11-09):
+- #3 (`hunt-model` → `master`), #4 (`multi-round-puzzles` → `hunt-model`) and #5 (`batch-queries` → `multi-round-puzzles`) were merged
+  within a minute of each other. Each merged into **its own base branch**, so only #3 reached `master`; #4 and #5 landed in the
+  intermediate branches. GitHub retargets a stacked PR to `master` only if its base branch is deleted *before* the PR is merged.
+- #6, #7 and #11 then reverted them. `master` ended up as before plus `Dev Setup.md`, but its history still contains #3's commits.
+  Git treats those as already merged, so re-merging `hunt-model` brings nothing back. PR #8 (`hunt-model` → `master`) showed only
+  a `tests.py` diff because of this, and merging it would have left tests that need a Hunt model that isn't there.
+- `zulip-hunt-mods` (migrations 0006–0008) is branched from `batch-queries` @ 9ea1aa6, so it relies on the original 0004/0005 migration files.
+
+Fix: branch `reland-hunt-rounds-batch` from `origin/master`. It reverts the revert (07bbd96) and then merges `batch-queries` @ 9ea1aa6.
+The resulting tree equals `batch-queries` plus `Dev Setup.md`. 23 tests OK on SQLite and on Postgres. `zulip-hunt-mods` merges onto it cleanly.
+After it merges: close #8 and #9, and delete `hunt-model`, `multi-round-puzzles`, `batch-queries` and `revert-*` on GitHub.
+Then open `zulip-hunt-mods` → `master`.
