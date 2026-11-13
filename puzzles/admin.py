@@ -1,4 +1,9 @@
+from typing import Any
+
 from django.contrib import admin
+from django.db.models import ManyToManyField
+from django.forms import ModelMultipleChoiceField
+from django.http import HttpRequest
 from ordered_model.admin import OrderedModelAdmin
 from puzzles.models import Hunt, Round, Status, Priority, Tag, UploadedFile, Location, Puzzle, SubmittedAnswer, \
     PuzzleWrongAnswer, Config, AccessLog, JitsiRooms, PuzzleFolder, PuzzleTemplate, QueuedAnswer, QueuedHint, UserProfile, UserZulipStatus
@@ -25,7 +30,17 @@ admin.site.register(Hunt, HuntAdmin)
 
 class RoundAdmin(OrderedModelAdmin):
 	list_display = ('name', 'hunt', 'parent_round', 'move_up_down_links')
-	list_filter = ('hunt',)
+
+	def get_queryset(self, request):
+		qs = super().get_queryset(request)
+		active_hunt = UserProfile.objects.get(user=request.user).active_hunt
+		print(active_hunt)
+		if active_hunt:
+			return qs.filter(hunt=active_hunt)
+		else:
+			return qs
+
+	#list_filter = ('hunt',)
 	list_select_related = ('hunt', 'parent_round')
 	fields = ('hunt', 'name', 'parent_round', 'description')
 admin.site.register(Round, RoundAdmin)
@@ -38,6 +53,22 @@ class PuzzleAdmin(OrderedModelAdmin):
 	filter_horizontal = ('rounds',)
 	fields = ('title', 'url', 'hunt','status', 'priority', 'tags', 'motp', 'description', 'rounds',
 			  'solvers', 'topic_name', 'spreadsheet', 'answer', 'checkAnswerLink', 'template', 'folder')
+	def get_queryset(self, request):
+		qs = super().get_queryset(request)
+		active_hunt = UserProfile.objects.get(user=request.user).active_hunt
+		if active_hunt:
+			return qs.filter(hunt=active_hunt)
+		else:
+			return qs
+	def formfield_for_manytomany(self, db_field, request, **kwargs):
+		if db_field.name == "rounds":
+			active_hunt = UserProfile.objects.get(user=request.user).active_hunt
+			if active_hunt:
+				kwargs["queryset"] = Round.objects.filter(hunt=active_hunt)
+			else:
+				kwargs["queryset"] = Round.objects.all()
+		return super().formfield_for_manytomany(db_field, request, **kwargs)
+
 	def get_readonly_fields(self,request, obj=None):
 		if obj:
 			return ['template','folder']

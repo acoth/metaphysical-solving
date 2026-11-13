@@ -100,8 +100,7 @@ class Hunt(OrderedModel):
     name = models.CharField(max_length=255)
     url = models.URLField(blank=True, help_text="Hunt website, for reference.")
     is_current = models.BooleanField(default=False,
-                                     help_text="The hunt being solved right now. Only one hunt can be current; "
-                                               "marking this one current un-marks the others.")
+                                     help_text="The hunt being solved right now. At most one hunt can be current.")
 
     class Meta(OrderedModel.Meta):
         constraints = [

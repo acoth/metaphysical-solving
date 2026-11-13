@@ -442,8 +442,8 @@ def api_update_puzzle (request, puzzle_id):
                         puzzle.tags.set([tags_by_name[name] for name in data["tags"]])
                 if key == "hint":
                    q = QueuedHint(puzzle=puzzle, user=request.user, details=data["hint"]["text"], urgent=data["hint"]["urgent"], resolved=False)
-                   zulip_send("b+status", "puzzles"+puzzle.zulip_stream_suffix(), puzzle.zulip_topic(),
-                              "**%s requested a hint:**\n>%s" % (q.user.get_full_name(),q.details))
+                   #zulip_send("b+status", "puzzles"+puzzle.zulip_stream_suffix(), puzzle.zulip_topic(),
+                   #           "**%s requested a hint:**\n>%s" % (q.user.get_full_name(),q.details))
                    q.save()
                 if key == "hint_resolution":
                    q = QueuedHint.objects.get(id=data["hint_resolution"]["id"])
@@ -470,18 +470,20 @@ def api_log_a_view(request, puzzle_id):
 
 # Puzzles eligible for the unloved lists, with everything the lists display preloaded.
 # Config is fetched once; the exempt statuses/tags are used as subqueries.
-def unloved_candidates():
+def unloved_candidates(hunt):
     config = Config.objects.get()
-    return (Puzzle.objects
-            .exclude(status__in=config.unloved_exempt_status.all())
-            .exclude(tags__in=config.unloved_exempt_tags.all())
+    qs_puzzles = Puzzle.objects.exclude(status__in=config.unloved_exempt_status.all()).exclude(tags__in=config.unloved_exempt_tags.all())
+    if hunt:
+        qs_puzzles = qs_puzzles.filter(hunt=hunt)
+
+    return (qs_puzzles
             .select_related('status', 'priority')
             .prefetch_related('rounds'))
 
 # API endpoint for unloved puzzles (by status)
 @login_required
 def api_unloved(request):
-    acceptable_puzzles = list(unloved_candidates())
+    acceptable_puzzles = list(unloved_candidates(hunt=UserProfile.objects.get(user=request.user).active_hunt))
     summary = log_summary_by_puzzle([p.id for p in acceptable_puzzles])
     last_updates = [(summary[p.id]['last_log'], p) for p in acceptable_puzzles]
 
@@ -508,7 +510,7 @@ def api_unloved(request):
 # API endpoint for unloved puzzles (by spreadsheet)
 @login_required
 def api_unloved_by_spreadsheet(request):
-    last_updates = get_last_revs(unloved_candidates())
+    last_updates = get_last_revs(unloved_candidates(hunt=UserProfile.objects.get(user=request.user).active_hunt))
 
     puzzles = [{"puzzle": {
                     "id": s['puzzle'].id,
@@ -633,7 +635,11 @@ def handle_puzzle_hint(request, puzzle, user, details, urgent):
 
 @login_required
 def hint_queue(request):
-    hints = list(QueuedHint.objects.select_related('user', 'puzzle__status', 'puzzle__priority'))
+    qs = QueuedHint.objects.all()
+    hunt = UserProfile.objects.get(user=request.user).active_hunt
+    if hunt:
+        qs = qs.filter(puzzle__hunt=hunt)
+    hints = list(qs.select_related('user', 'puzzle__status', 'puzzle__priority'))
     open_hints = [h for h in hints if not h.resolved]
     puzzle_ids = {h.puzzle_id for h in open_hints}
     summary = log_summary_by_puzzle(puzzle_ids)
@@ -704,6 +710,9 @@ def need_zulip_login(request):
 def who_what(request):
     all_recent = (AccessLog.objects.filter(lastUpdate__gte=now()-timedelta(seconds=120))
                   .distinct().select_related('user', 'puzzle'))
+    hunt = UserProfile.objects.get(user=request.user).active_hunt
+    if hunt:
+        all_recent = all_recent.filter(puzzle__hunt=hunt)
     jitsi_rooms = JitsiRooms.objects.select_related('user', 'puzzle')
     rdict = defaultdict(lambda: {"puzzles": set(), "rooms": set()})
     for el in all_recent:
