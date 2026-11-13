@@ -1108,11 +1108,19 @@ select {
         display: flex;
     }
 
+    /* The shared .puzzle-top rule puts title and badges side by side; in a tile, stack them. */
+    & .puzzle-top {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        flex: 1;
+    }
+
     & .puzzle-header {
         display: block;
         margin: 0;
         line-height: 1.2;
-        overflow-wrap: anywhere;
+        overflow-wrap: break-word;
     }
 
     & .puzzle-title {
@@ -1148,8 +1156,18 @@ select {
     & .badges {
         top: 0;
         align-self: stretch;
-        justify-content: space-between;
+        align-items: flex-start;
+        gap: 4px;
         margin-top: auto;
+        min-width: 0;
+    }
+
+    & .status-badge,
+    & .answer-badge {
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: break-word;
+        line-height: 1.25;
     }
 
     & .solver-count {
@@ -1200,7 +1218,7 @@ select {
 }
 
 .rounds-container .answer-badge {
-    overflow-wrap: anywhere;
+    overflow-wrap: anywhere;  /* long machine-ish answers like {"ID":...} have no spaces */
 }
 
 /* Old flat-row overview rules, kept for any other page that still uses them */
