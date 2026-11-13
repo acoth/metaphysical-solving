@@ -91,10 +91,52 @@ class Priority(OrderedModel):
         return self.text
     
 
+# A Mystery Hunt (e.g. "MIT Mystery Hunt 2027"). Contains rounds via `hunt.rounds`; the top-level ones
+# (no parent_round) are returned by `top_level_rounds()`. At most one hunt is marked `is_current`, and
+# that is the one the overview page shows by default.
+class Hunt(OrderedModel):
+    name = models.CharField(max_length=255)
+    url = models.URLField(blank=True, help_text="Hunt website, for reference.")
+    is_current = models.BooleanField(default=False,
+                                     help_text="The hunt being solved right now. Only one hunt can be current; "
+                                               "marking this one current un-marks the others.")
+
+    class Meta(OrderedModel.Meta):
+        constraints = [
+            models.UniqueConstraint(fields=['is_current'], condition=models.Q(is_current=True),
+                                    name='only_one_current_hunt'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def current(cls):
+        return cls.objects.filter(is_current=True).first()
+
+    def top_level_rounds(self):
+        return self.rounds.filter(parent_round__isnull=True)
+
+    def save(self, *args, **kwargs):
+        if self.is_current:
+            # Clear the flag on every other hunt first so the partial unique constraint holds.
+            Hunt.objects.filter(is_current=True).exclude(pk=self.pk).update(is_current=False)
+        super().save(*args, **kwargs)
+
+
 # A single puzzle round, has a name, a description, and a reference to the parent round (parent_round),
 # which can be empty. If a round is a parent to multiple rounds, then `child_rounds` field will retrieve
-# them all.
+# them all. Every round, top-level or nested, records the hunt it belongs to; child rounds inherit their
+# parent's hunt automatically on save, so "all rounds of a hunt" is a single flat query.
 class Round(OrderedModel):
+    hunt = models.ForeignKey(
+        'Hunt',
+        on_delete=models.SET_NULL,
+        related_name='rounds',
+        blank=True,
+        null=True,
+        help_text="Hunt this round belongs to. Nested rounds inherit their parent round's hunt."
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     parent_round = models.ForeignKey(
@@ -104,8 +146,33 @@ class Round(OrderedModel):
         blank=True,
         null=True
     )
+
     def __str__(self):
         return self.name
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.parent_round_id is None:
+            return
+        if self.hunt_id is not None and self.parent_round.hunt_id not in (None, self.hunt_id):
+            raise ValidationError({'parent_round': "Parent round belongs to a different hunt."})
+        # Walk up the ancestor chain to reject cycles (a round can't be its own ancestor).
+        seen = set()
+        ancestor = self.parent_round
+        while ancestor is not None:
+            if self.pk is not None and ancestor.pk == self.pk:
+                raise ValidationError({'parent_round': "A round can't be nested inside itself."})
+            if ancestor.pk in seen:
+                break
+            seen.add(ancestor.pk)
+            ancestor = ancestor.parent_round
+
+    def save(self, *args, **kwargs):
+        if self.parent_round_id is not None:
+            parent_hunt_id = Round.objects.filter(pk=self.parent_round_id).values_list('hunt_id', flat=True).first()
+            if parent_hunt_id is not None:
+                self.hunt_id = parent_hunt_id
+        super().save(*args, **kwargs)
 
 class Tag(OrderedModel):
     name = models.CharField(max_length=200, unique=True)
@@ -210,7 +277,8 @@ class Puzzle(OrderedModel):
 
     description = models.CharField(max_length=280, blank=True, help_text="Short description of the given puzzle")
 
-    round = models.ForeignKey('Round', null=True, blank=True, on_delete=models.SET_NULL, help_text="The round a given puzzle belongs to.")
+    rounds = models.ManyToManyField('Round', blank=True, related_name='puzzles',
+                                    help_text="The round(s) a given puzzle belongs to. A puzzle (e.g. a cross-round meta) can be in several.")
 
     solvers = models.ManyToManyField(User, blank=True)
     topic_name = models.CharField(max_length=200,blank=True)
@@ -228,6 +296,14 @@ class Puzzle(OrderedModel):
     
     def tag_list(self):
         return [tag.name for tag in self.tags.all()]
+
+    def round_list(self):
+        # Uses the prefetch cache when the caller did prefetch_related('rounds').
+        return list(self.rounds.all())
+
+    def round_names(self):
+        """Comma-separated round names, '' if none. Used wherever a single 'round' string used to be shown."""
+        return ', '.join(r.name for r in self.round_list())
 
     def answer_or_status(self):
         if self.answer:
@@ -296,12 +372,10 @@ class Puzzle(OrderedModel):
         return User.objects.filter(id__in=[urec["user"] for urec in logs.order_by("user").values("user").distinct()])
 
     def save(self, *args, **kwargs):
-        # Grab old instance to see if our answer is new.
-        try:
-            old_puzzle = Puzzle.objects.get(id=self.id)
-            old_answer = old_puzzle.answer
-        except Puzzle.DoesNotExist:
-            old_answer = ''
+        # Grab the old answer (only that column) to see if our answer is new.
+        old_answer = ''
+        if self.pk is not None:
+            old_answer = Puzzle.objects.filter(pk=self.pk).values_list('answer', flat=True).first() or ''
 
         # Save first, so that we don't create a new spreadsheet if the
         # save would fail.
@@ -323,10 +397,11 @@ class Puzzle(OrderedModel):
                        subject=self.zulip_topic(),
                        message=':thumbs_up: **%s** is correct!' % self.answer)
 
+            round_names = self.round_names()
             zulip_send(user='b+status',
                        stream='status',
                        subject='solved',
-                       message='Puzzle %s solved [%s]' % (self.title, self.round))
+                       message='Puzzle %s solved%s' % (self.title, ' [%s]' % round_names if round_names else ''))
 
 def send_puzzle_zulip(**kwargs):
     if kwargs['created']:
@@ -359,18 +434,17 @@ def notify_tag_on_add(**kwargs):
     if kwargs['action'] == 'pre_add':
         puzzle = kwargs['instance']
         pks = kwargs['pk_set']
-        prev_tag_pks = [tag.id for tag in puzzle.tags.all()]
-        for pk in pks:
-            if pk not in prev_tag_pks:
-                tag = Tag.objects.get(id=pk)
-                print("Tag %d added to puzzle %s"%(pk, puzzle.title))
-                zulip_send(user='b+status',
-                           stream="tags",
-                           subject=tag.topic(),
-                           message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
-                                   (puzzle.title, puzzle.url, puzzle.id,
-                                    settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
-                                    tag))
+        prev_tag_pks = set(puzzle.tags.values_list('id', flat=True))
+        new_tags = Tag.objects.filter(id__in=set(pks) - prev_tag_pks)  # one query for all added tags
+        for tag in new_tags:
+            print("Tag %d added to puzzle %s"%(tag.pk, puzzle.title))
+            zulip_send(user='b+status',
+                       stream="tags",
+                       subject=tag.topic(),
+                       message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
+                               (puzzle.title, puzzle.url, puzzle.id,
+                                settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id]),
+                                tag))
 
 
 def log_on_creation(**kwargs):
@@ -379,7 +453,7 @@ def log_on_creation(**kwargs):
         entry = AccessLog(
             user=user if user is not None else User.objects.all()[0],
             puzzle=kwargs['instance'],
-            lastUpdate=datetime.now())
+            lastUpdate=now())  # timezone-aware (was a naive datetime.now())
         entry.save()
         
                 
