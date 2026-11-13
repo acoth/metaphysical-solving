@@ -264,7 +264,8 @@ def defaultFolder():
     except ProgrammingError:
         return None
 def defaultHunt():
-    return Config.objects.get().default_hunt
+    config = Config.objects.first()
+    return config.default_hunt if config else None
 
 def unloved_exempt_statuses():
     return Config.objects.get().unloved_exempt_status.all()
