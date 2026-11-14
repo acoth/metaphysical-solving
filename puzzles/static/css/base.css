@@ -958,8 +958,9 @@ select {
     --ov-card-edge: color-mix(in srgb, var(--primary) 16%, white);
     --ov-read-ink: #5b6676;      /* opened puzzles: lighter, regular weight */
     --ov-solved-title: #8a94a3;  /* solved: lightest */
-    /* Everything right-aligned (chips, counts) sits this far in from the card's right edge, at every depth:
-       = round-body right padding (6px) + puzzle row right padding (8px). Headers use the same total. */
+    /* One right edge for everything: chips, counts, and the right side of row backgrounds (meta,
+       capstone, hover) all end this far in from the card's right edge, at every depth. Only the
+       top-level header and body carry it; rows and nested rounds add no right padding. */
     --ov-right-inset: 14px;
     --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
     --ov-ink: var(--gray-800);
@@ -1083,7 +1084,7 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 6px 6px 8px;
+    padding: 6px var(--ov-right-inset) 8px 6px;
 }
 
 .round.collapsed > .round-body {
@@ -1105,8 +1106,7 @@ select {
 
     & > .round-header {
         background: none;
-        /* nested bodies add no right padding, so only the row padding (8px) is left to match */
-        padding: 2px calc(var(--ov-right-inset) - 6px) 2px 0;
+        padding: 2px 0;   /* no right padding: the count sits on the shared right edge */
         gap: 2px;
 
         & .round-title {
@@ -1152,7 +1152,7 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 4px calc(var(--ov-right-inset) - 6px) 5px 8px;
+    padding: 4px 0 5px 8px;   /* no right padding: chips end on the shared right edge */
     background: none;
     border: none;
     border-radius: 6px;
