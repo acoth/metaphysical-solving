@@ -954,7 +954,13 @@ select {
 
 .rounds-container {
     --ov-accent: var(--primary);
-    --ov-accent-soft: color-mix(in srgb, var(--primary) 7%, white);
+    --ov-accent-soft: color-mix(in srgb, var(--primary) 15%, white);
+    --ov-card-edge: color-mix(in srgb, var(--primary) 16%, white);
+    --ov-read-ink: #5b6676;      /* opened puzzles: lighter, regular weight */
+    --ov-solved-title: #8a94a3;  /* solved: lightest */
+    /* Everything right-aligned (chips, counts) sits this far in from the card's right edge, at every depth:
+       = round-body right padding (6px) + puzzle row right padding (8px). Headers use the same total. */
+    --ov-right-inset: 14px;
     --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
     --ov-ink: var(--gray-800);
     --ov-muted: #6b7686;
@@ -983,7 +989,8 @@ select {
     border-radius: 10px;
     height: fit-content;
     margin-bottom: 0;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04);
+    border: 1px solid var(--ov-card-edge);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05);
     overflow: hidden;
 }
 
@@ -991,7 +998,7 @@ select {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 10px 7px 12px;
+    padding: 8px var(--ov-right-inset) 7px 6px;
     background: var(--ov-accent-soft);
 
     & .round-header-left {
@@ -1083,8 +1090,8 @@ select {
     display: none;
 }
 
-.round.depth-1.collapsed .collapse-chevron {
-    transform: rotate(90deg);
+.round.collapsed > .round-header .collapse-chevron {
+    transform: rotate(-90deg);    /* points right when closed, tree-style, at every level */
 }
 
 /* Nested rounds: an indented section, not a box */
@@ -1097,7 +1104,8 @@ select {
 
     & > .round-header {
         background: none;
-        padding: 2px 4px 2px 0;
+        /* nested bodies add no right padding, so only the row padding (8px) is left to match */
+        padding: 2px calc(var(--ov-right-inset) - 6px) 2px 0;
         gap: 2px;
 
         & .round-title {
@@ -1118,9 +1126,6 @@ select {
         border-left: 2px solid var(--ov-guide);
     }
 
-    &.collapsed .collapse-chevron {
-        transform: rotate(-90deg);    /* tree-style: points right when closed */
-    }
 }
 
 .round.depth-3 > .round-body { border-left-color: color-mix(in srgb, var(--primary) 15%, white); }
@@ -1146,7 +1151,7 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 4px 8px 5px 14px;
+    padding: 4px calc(var(--ov-right-inset) - 6px) 5px 8px;
     background: none;
     border: none;
     border-radius: 6px;
@@ -1173,9 +1178,9 @@ select {
     }
 
     & .puzzle-title {
-        font-weight: 450;
+        font-weight: 400;
         font-size: 0.875rem;
-        color: var(--ov-ink);
+        color: var(--ov-read-ink);
     }
 
     & .puzzle-link {
@@ -1212,7 +1217,8 @@ select {
     & .solver-count {
         color: var(--ov-accent);
         font-weight: 550;
-        margin-right: 2px;
+        margin-right: 4px;
+        padding: 0;
     }
 
     & .status-badge {
@@ -1252,13 +1258,13 @@ select {
 
 /* Priority shows on the status chip; only high/asap get colour */
 .rounds-container .status-badge.normal-priority { background: var(--ov-chip) !important; }
-.rounds-container .status-badge.low-priority { background: none !important; color: var(--gray-500); }
+.rounds-container .status-badge.low-priority { background: none !important; color: var(--gray-500); padding-left: 0; padding-right: 0; }
 .rounds-container .status-badge.high-priority { background: var(--ov-high-chip) !important; color: var(--ov-high-ink); }
 .rounds-container .status-badge.asap-priority { background: var(--asap-priority) !important; color: white; font-weight: 650; }
 
 /* Solved: recede so open puzzles stand out */
 .rounds-container .puzzle.solved .puzzle-title {
-    color: var(--ov-muted);
+    color: var(--ov-solved-title);
 }
 
 /* Meta / capstone: soft fills + matching tag chips */
@@ -1287,22 +1293,10 @@ select {
     font-size: 0.62rem;
 }
 
-/* Unopened (you haven't clicked through yet): bold title + teal dot, no background */
-.rounds-container .puzzle.unopened {
-    &:before {
-        content: "";
-        position: absolute;
-        left: 5px;
-        top: 11px;
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: var(--ov-accent);
-    }
-
-    & .puzzle-title {
-        font-weight: 650;
-    }
+/* Unopened (you haven't clicked through to it yet): heavier and darker title */
+.rounds-container .puzzle.unopened .puzzle-title {
+    font-weight: 650;
+    color: var(--ov-ink);
 }
 
 /* Old flat-row overview rules, kept for any other page that still uses them */

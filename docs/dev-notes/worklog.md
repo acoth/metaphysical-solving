@@ -151,3 +151,9 @@ Owner's asks: make the nesting more apparent, cut down on lines, and give the ov
 - Puzzle rows: no borders or shadows; spacing plus a hover highlight. Unopened puzzles get a bold title and a small teal dot instead of the
   peach background and green stripe.
 - CSS cache-buster `?5`. Re-checked in QuickJS against the real data: tree, totals, filters and collapse all fine. 23 tests OK.
+- Follow-up (owner feedback):
+  - Cards: header tint raised to 15% teal, plus a 1px teal-grey outline, so they stand out from the page background.
+  - Unopened puzzles: no dot. Unopened titles are bold and dark; opened ones are regular weight and lighter; solved ones are lightest.
+  - Collapse chevron is on the left at every level and points right when collapsed.
+  - Right edges line up at every depth through `--ov-right-inset` (14px = body padding 6 + row padding 8). Header paddings are derived from it,
+    and the low-priority status, which is plain text, has no side padding, so its text lines up with the chip edges.
