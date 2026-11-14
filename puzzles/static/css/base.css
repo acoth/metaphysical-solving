@@ -958,9 +958,9 @@ select {
     --ov-card-edge: color-mix(in srgb, var(--primary) 16%, white);
     --ov-read-ink: #5b6676;      /* opened puzzles: lighter, regular weight */
     --ov-solved-title: #8a94a3;  /* solved: lightest */
-    /* One right edge for everything: chips, counts, and the right side of row backgrounds (meta,
-       capstone, hover) all end this far in from the card's right edge, at every depth. Only the
-       top-level header and body carry it; rows and nested rounds add no right padding. */
+    /* One right edge: the outermost visible thing in each row ends this far in from the card's right
+       edge, at every depth. Round counts and plain rows' chips sit on it; meta/capstone rows' coloured
+       box sits on it, with its chip padded inside. Only the top-level header and body carry it. */
     --ov-right-inset: 14px;
     --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
     --ov-ink: var(--gray-800);
@@ -1152,7 +1152,10 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 4px 0 5px 8px;   /* no right padding: chips end on the shared right edge */
+    /* Plain rows: 8px of padding pulled back out by the -8px margin, so the chip lands on the shared edge
+       and the hover background reaches just past it. */
+    padding: 4px 8px 5px 8px;
+    margin-right: -8px;
     background: none;
     border: none;
     border-radius: 6px;
@@ -1268,7 +1271,13 @@ select {
     color: var(--ov-solved-title);
 }
 
-/* Meta / capstone: soft fills + matching tag chips */
+/* Meta / capstone: soft fills + matching tag chips. The box (not its chip) sits on the shared edge,
+   with even padding on both sides. */
+.rounds-container .puzzle.meta,
+.rounds-container .puzzle.capstone {
+    margin-right: 0;
+}
+
 .rounds-container .puzzle.meta {
     background: var(--ov-meta-bg) !important;
 
