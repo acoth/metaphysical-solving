@@ -138,3 +138,16 @@ Goal: nested rounds show *inside* their parent on the overview (up to 4 levels),
   `~/backups/puzzle_db_pre-nesting-demo_20261113-044430.dump`.
 - Checked with no browser available: the page's JS ran in QuickJS against the real `/api_overview` JSON. Nesting, totals, filters and
   collapse behaved as expected. 23 tests OK.
+
+## 2026-11-14: `nested-overview`, visual pass 2 (one commit, so it can be reverted on its own)
+
+Owner's asks: make the nesting more apparent, cut down on lines, and give the overview a more consistent palette.
+- The palette is scoped to `.rounds-container` (`--ov-*` variables), so other pages are unchanged. Teal (the app's `--primary`) for round
+  headers and titles. Neutral chips for normal statuses and tags. Colour only where it means something: green for solved
+  (answer chip; the title fades), amber for meta, cyan for capstone, orange for high/asap priority.
+- Top-level rounds: white card, teal-tinted header, "solved/total" count, and a 3px green progress bar under the header.
+- Nested rounds aren't boxed any more: a chevron before the title (tree-style; it points right when collapsed), and their contents are indented
+  under one 2px guide line that gets lighter with depth. This replaces the borders, left rules and tinted headers.
+- Puzzle rows: no borders or shadows; spacing plus a hover highlight. Unopened puzzles get a bold title and a small teal dot instead of the
+  peach background and green stripe.
+- CSS cache-buster `?5`. Re-checked in QuickJS against the real data: tree, totals, filters and collapse all fine. 23 tests OK.

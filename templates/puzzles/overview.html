@@ -566,18 +566,25 @@
         const collapsed = collapsed_rounds.includes(key);
         const styleDepth = Math.min(depth, MAX_STYLED_DEPTH);
         const solved = solvedIds.size, total = allIds.size;
+        const pct = total ? Math.round(100 * solved / total) : 0;
+        const toggle = `<button class="collapse-round-button" title="Collapse/expand" onClick="toggleRound('${round.id}')"><i class="ti ti-chevron-down collapse-chevron"></i></button>`;
+        const progress = `<span class="round-progress ${solved === total ? 'complete' : ''}" title="Solved puzzles in this round and its sub-rounds">${solved === total ? '<i class="ti ti-check"></i> ' : ''}${solved}/${total}</span>`;
+        // Top-level rounds: card with the toggle on the right and a progress bar under the header.
+        // Nested rounds: tree-style, toggle chevron before the title.
         const html = `
             <div class="round depth-${styleDepth} ${depth > 1 ? 'child-round' : ''} ${collapsed ? 'collapsed' : ''}" id="round-block-${round.id}">
                 <div class="round-header">
+                    ${depth > 1 ? toggle : ''}
                     <div class="round-header-left">
                     <div class="round-title">${round.round}</div>
                     ${round.description ? `<div class="round-description">${round.description}</div>` : ''}
                     </div>
                     <div class="round-header-right">
-                      <span class="round-progress ${solved === total ? 'complete' : ''}" title="Solved puzzles in this round and its sub-rounds">${solved}/${total} solved</span>
-                      <button class="collapse-round-button" onClick="toggleRound('${round.id}')"><i class="ti ti-chevron-down collapse-chevron"></i></button>
+                      ${progress}
+                      ${depth === 1 ? toggle : ''}
                     </div>
                 </div>
+                ${depth === 1 ? `<div class="round-progress-bar"><span style="width: ${pct}%"></span></div>` : ''}
                 <div class="round-body">
                     ${ownPuzzles.length ? `
                         <div class="puzzle-grid">

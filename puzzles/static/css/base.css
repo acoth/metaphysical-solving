@@ -946,89 +946,187 @@ select {
     }
 }
 
-/* Round boxes (overview). Rounds nest: a round's body holds its own puzzle tiles, then its
-   child rounds as inset boxes. Depth 1 is a top-level card; depths 2-4 get progressively
-   lighter headers and a coloured left rule so the level is readable at a glance. */
+/* Overview: rounds and puzzles.
+   - Top-level rounds are white cards with a teal-tinted header and a progress bar.
+   - Nested rounds are not boxed: a chevron + title, then their contents indented under one guide line.
+   - Puzzle rows have no borders; colour is reserved for meaning (solved, meta, capstone, priority).
+   Palette is scoped here so other pages are unaffected. */
+
+.rounds-container {
+    --ov-accent: var(--primary);
+    --ov-accent-soft: color-mix(in srgb, var(--primary) 7%, white);
+    --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
+    --ov-ink: var(--gray-800);
+    --ov-muted: #6b7686;
+    --ov-chip: #eef1f5;
+    --ov-hover: #f3f6f8;
+    --ov-solved-ink: #3d7a37;
+    --ov-solved-chip: #e3f0e1;
+    --ov-meta-bg: #fcf4d2;
+    --ov-meta-ink: #7a5d00;
+    --ov-capstone-bg: #dcf3f5;
+    --ov-capstone-ink: #0f6670;
+    --ov-high-chip: #fde3c3;
+    --ov-high-ink: #8a4a07;
+}
 
 .roundwrapper {
     break-inside: avoid;
-    padding-bottom: 10px;
+    padding-bottom: 12px;
     padding-top: 2px;
 }
 
+/* Top-level round card */
 .round {
-    --round-tint: var(--header-background);
     break-inside: avoid;
     background: white;
-    border-radius: 0.5rem;
+    border-radius: 10px;
     height: fit-content;
-    margin-bottom: 10px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    margin-bottom: 0;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.07), 0 2px 6px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
 }
 
 .round-header {
-    padding: 0.5rem;
-    font-weight: 600;
-    background: var(--round-tint);
-    border-radius: 0.5rem 0.5rem 0 0;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    padding: 8px 10px 7px 12px;
+    background: var(--ov-accent-soft);
 
-    .collapse-chevron {
-        transition: transform 0.3s ease;
+    & .round-header-left {
+        flex: 1;
+        min-width: 0;
+    }
+
+    & .round-title {
+        color: var(--ov-accent);
+        font-weight: 650;
+        font-size: 0.95rem;
+        line-height: 1.25;
     }
 
     & .collapse-round-button {
-        border-radius: 20px;
-        height: 20px;
-        width: 20px;
         flex: none;
+        width: 22px;
+        height: 22px;
         border: none;
+        border-radius: 6px;
+        background: none;
+        color: var(--ov-muted);
         display: flex;
-        justify-content: center;
         align-items: center;
+        justify-content: center;
         font-size: 16px;
-        background: rgba(255,255,255,0.5);
         cursor: pointer;
+
+        &:hover {
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--ov-ink);
+        }
+    }
+
+    & .collapse-chevron {
+        transition: transform 0.2s ease;
     }
 }
 
-.round.collapsed > .round-header {
-    border-radius: 0.5rem;
+.round-header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+}
 
-    & .collapse-chevron {
-        transform: rotate(90deg);
+.round-description {
+    font-size: 0.7rem;
+    color: var(--ov-muted);
+    font-weight: 450;
+    line-height: 1.3;
+    margin-top: 1px;
+}
+
+/* "3/14": counts the round and everything nested in it */
+.round-progress {
+    font-size: 0.7rem;
+    font-weight: 550;
+    color: var(--ov-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    &.complete {
+        color: var(--ov-solved-ink);
     }
+}
+
+.round-progress-bar {
+    height: 3px;
+    background: color-mix(in srgb, var(--primary) 10%, white);
+
+    & span {
+        display: block;
+        height: 100%;
+        background: var(--success);
+        border-radius: 0 2px 2px 0;
+        transition: width 0.4s ease;
+    }
+}
+
+.round-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 6px 8px;
 }
 
 .round.collapsed > .round-body {
     display: none;
 }
 
-.round-header-right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: none;
+.round.depth-1.collapsed .collapse-chevron {
+    transform: rotate(90deg);
 }
 
-/* "3/7 solved" pill; counts the round and everything nested in it */
-.round-progress {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--gray-700);
-    background: rgba(255,255,255,0.55);
-    padding: 1px 7px;
-    border-radius: 10px;
-    white-space: nowrap;
+/* Nested rounds: an indented section, not a box */
+.round.child-round {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    overflow: visible;
+    margin-top: 6px;
 
-    &.complete {
-        background: var(--success);
-        color: white;
+    & > .round-header {
+        background: none;
+        padding: 2px 4px 2px 0;
+        gap: 2px;
+
+        & .round-title {
+            font-size: 0.8rem;
+            font-weight: 650;
+            color: var(--primary-light);
+        }
+
+        & .collapse-round-button {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    & > .round-body {
+        margin-left: 9px;            /* lines the guide up under the chevron */
+        padding: 2px 0 2px 8px;
+        border-left: 2px solid var(--ov-guide);
+    }
+
+    &.collapsed .collapse-chevron {
+        transform: rotate(-90deg);    /* tree-style: points right when closed */
     }
 }
+
+.round.depth-3 > .round-body { border-left-color: color-mix(in srgb, var(--primary) 15%, white); }
+.round.depth-4 > .round-body { border-left-color: color-mix(in srgb, var(--primary) 10%, white); }
+.round.depth-3 > .round-header .round-title,
+.round.depth-4 > .round-header .round-title { color: color-mix(in srgb, var(--primary-light) 80%, var(--gray-500)); }
 
 .round-chevron {
     position: relative;
@@ -1036,72 +1134,26 @@ select {
     margin: 0 2px;
 }
 
-.round-description {
-    font-size: 0.7rem;
-    color: #353c47;
-    font-weight: 500;
-    line-height: 1em;
-}
-
-.round-body {
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    background: color-mix(in srgb, var(--round-tint) 14%, white);
-    border-radius: 0 0 0.5rem 0.5rem;
-}
-
-/* Nested rounds */
-.round.child-round {
-    margin: 0;
-    box-shadow: none;
-    border: 1px solid color-mix(in srgb, var(--round-tint) 70%, white);
-    border-left: 3px solid var(--primary-light);
-    border-radius: 0.4rem;
-
-    & > .round-header {
-        padding: 0.3rem 0.45rem;
-        font-size: 0.85rem;
-        border-radius: 0.3rem 0.3rem 0 0;
-    }
-
-    &.collapsed > .round-header {
-        border-radius: 0.3rem;
-    }
-
-    & > .round-body {
-        padding: 5px;
-        border-radius: 0 0 0.3rem 0.3rem;
-    }
-}
-
-.round.depth-2 { --round-tint: color-mix(in srgb, var(--header-background) 62%, white); }
-.round.depth-3 { --round-tint: color-mix(in srgb, var(--header-background) 40%, white); border-left-color: #4f8f96; }
-.round.depth-4 { --round-tint: color-mix(in srgb, var(--header-background) 24%, white); border-left-color: #95c1c6; }
-
-/* Puzzle boxes: one full-width box per puzzle, stacked */
+/* Puzzle rows */
 .puzzle-grid {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 .rounds-container .puzzle {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 5px 10px 6px 12px;
-    background: white;
-    border: 1px solid var(--gray-200);
-    border-radius: 5px;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    gap: 2px;
+    padding: 4px 8px 5px 14px;
+    background: none;
+    border: none;
+    border-radius: 6px;
     min-width: 0;
 
     &:hover {
-        border-color: var(--gray-300);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+        background: var(--ov-hover);
     }
 
     &:hover .solver-count.show-on-hover {
@@ -1109,89 +1161,147 @@ select {
     }
 
     & .puzzle-top {
-        gap: 6px;
+        gap: 8px;
         align-items: flex-start;
     }
 
     & .puzzle-header {
         display: block;
         margin: 0;
-        line-height: 1.3;
+        line-height: 1.35;
         min-width: 0;
     }
 
     & .puzzle-title {
-        font-weight: 400;
-        font-size: 0.9rem;
-        color: #0f172a;
+        font-weight: 450;
+        font-size: 0.875rem;
+        color: var(--ov-ink);
     }
 
     & .puzzle-link {
-        color: #2563eb;
+        color: var(--ov-muted);
         font-size: 0.8rem;
-        margin-left: 2px;
+        margin-left: 3px;
         position: relative;
         top: 1px;
+
+        &:hover {
+            color: var(--ov-accent);
+        }
     }
 
     & .puzzle-description {
-        font-size: 0.7rem;
-        line-height: 1.25;
-        color: var(--gray-500);
+        font-size: 0.72rem;
+        line-height: 1.3;
+        color: var(--ov-muted);
         margin: 0;
         top: 0;
     }
 
     & .puzzle-meta {
-        margin: 0;
-    }
-
-    & .puzzle-meta:empty {
-        display: none;
+        margin: 1px 0 0;
     }
 
     & .badges {
         top: 1px;
         flex: none;
         max-width: 55%;
+        gap: 2px;
+    }
+
+    & .solver-count {
+        color: var(--ov-accent);
+        font-weight: 550;
+        margin-right: 2px;
+    }
+
+    & .status-badge {
+        background: var(--ov-chip);
+        color: #3b4656;
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        box-shadow: none;
     }
 
     & .answer-badge {
+        background: var(--ov-solved-chip);
+        color: var(--ov-solved-ink);
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 0.7rem;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+        box-shadow: none;
         overflow-wrap: anywhere;  /* long machine-ish answers like {"ID":...} have no spaces */
+
+        & .answer-check {
+            margin-right: 3px;
+        }
+    }
+
+    & .tag {
+        border: none;
+        background: var(--ov-chip);
+        color: var(--ov-muted);
+        padding: 0 7px;
+        font-size: 0.68rem;
     }
 }
 
-.rounds-container .puzzle.solved {
-    background: #eef6ed;
-    border-color: #cfe5cc;
+/* Priority shows on the status chip; only high/asap get colour */
+.rounds-container .status-badge.normal-priority { background: var(--ov-chip) !important; }
+.rounds-container .status-badge.low-priority { background: none !important; color: var(--gray-500); }
+.rounds-container .status-badge.high-priority { background: var(--ov-high-chip) !important; color: var(--ov-high-ink); }
+.rounds-container .status-badge.asap-priority { background: var(--asap-priority) !important; color: white; font-weight: 650; }
+
+/* Solved: recede so open puzzles stand out */
+.rounds-container .puzzle.solved .puzzle-title {
+    color: var(--ov-muted);
 }
 
+/* Meta / capstone: soft fills + matching tag chips */
 .rounds-container .puzzle.meta {
-    background: rgb(238, 238, 137) !important;
-    border-color: #d8d86a;
+    background: var(--ov-meta-bg) !important;
+
+    & .special-tag {
+        background: color-mix(in srgb, var(--ov-meta-ink) 14%, white);
+        color: var(--ov-meta-ink);
+    }
 }
 
 .rounds-container .puzzle.capstone {
-    background: #50efff !important;
-    border-color: #2bcadb;
+    background: var(--ov-capstone-bg) !important;
+
+    & .special-tag {
+        background: color-mix(in srgb, var(--ov-capstone-ink) 14%, white);
+        color: var(--ov-capstone-ink);
+    }
 }
 
-.rounds-container .puzzle.unopened {
-    background: var(--unopened-background);
+.rounds-container .puzzle .special-tag {
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.62rem;
+}
 
+/* Unopened (you haven't clicked through yet): bold title + teal dot, no background */
+.rounds-container .puzzle.unopened {
     &:before {
         content: "";
         position: absolute;
-        left: 2px;
-        top: 5px;
-        width: 3px;
-        height: calc(100% - 10px);
-        border-radius: 2px;
-        background: #aae4b4;
+        left: 5px;
+        top: 11px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--ov-accent);
     }
 
     & .puzzle-title {
-        font-weight: 600;
+        font-weight: 650;
     }
 }
 
