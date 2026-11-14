@@ -1097,6 +1097,7 @@ select {
 /* Nested rounds: an indented section, not a box */
 .round.child-round {
     background: none;
+    border: none;          /* the card outline is for top-level rounds only */
     box-shadow: none;
     border-radius: 0;
     overflow: visible;
