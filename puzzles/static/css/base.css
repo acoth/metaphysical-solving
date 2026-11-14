@@ -958,10 +958,13 @@ select {
     --ov-card-edge: color-mix(in srgb, var(--primary) 16%, white);
     --ov-read-ink: #5b6676;      /* opened puzzles: lighter, regular weight */
     --ov-solved-title: #8a94a3;  /* solved: lightest */
-    /* One right edge: the outermost visible thing in each row ends this far in from the card's right
-       edge, at every depth. Round counts and plain rows' chips sit on it; meta/capstone rows' coloured
-       box sits on it, with its chip padded inside. Only the top-level header and body carry it. */
-    --ov-right-inset: 14px;
+    /* Geometry, so coloured rows fit their container symmetrically:
+       - --ov-gutter: gap between a row's box and its container on both sides (the card edge at top level;
+         the guide line on the left / card edge on the right when nested).
+       - --ov-row-pad: padding inside every row, left and right.
+       Chips, answers and round counts all end on one line: card edge - gutter - row-pad. */
+    --ov-gutter: 8px;
+    --ov-row-pad: 8px;
     --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
     --ov-ink: var(--gray-800);
     --ov-muted: #6b7686;
@@ -999,7 +1002,7 @@ select {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px var(--ov-right-inset) 7px 6px;
+    padding: 8px calc(var(--ov-gutter) + var(--ov-row-pad)) 7px 6px;
     background: var(--ov-accent-soft);
 
     & .round-header-left {
@@ -1084,7 +1087,7 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 6px var(--ov-right-inset) 8px 6px;
+    padding: 6px var(--ov-gutter) 8px;
 }
 
 .round.collapsed > .round-body {
@@ -1106,7 +1109,7 @@ select {
 
     & > .round-header {
         background: none;
-        padding: 2px 0;   /* no right padding: the count sits on the shared right edge */
+        padding: 2px var(--ov-row-pad) 2px 0;   /* count lines up with the chips in rows */
         gap: 2px;
 
         & .round-title {
@@ -1123,7 +1126,7 @@ select {
 
     & > .round-body {
         margin-left: 9px;            /* lines the guide up under the chevron */
-        padding: 2px 0 2px 8px;
+        padding: 2px 0 2px var(--ov-gutter);
         border-left: 2px solid var(--ov-guide);
     }
 
@@ -1152,10 +1155,7 @@ select {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    /* Plain rows: 8px of padding pulled back out by the -8px margin, so the chip lands on the shared edge
-       and the hover background reaches just past it. */
-    padding: 4px 8px 5px 8px;
-    margin-right: -8px;
+    padding: 4px var(--ov-row-pad) 5px;
     background: none;
     border: none;
     border-radius: 6px;
@@ -1271,13 +1271,7 @@ select {
     color: var(--ov-solved-title);
 }
 
-/* Meta / capstone: soft fills + matching tag chips. The box (not its chip) sits on the shared edge,
-   with even padding on both sides. */
-.rounds-container .puzzle.meta,
-.rounds-container .puzzle.capstone {
-    margin-right: 0;
-}
-
+/* Meta / capstone: soft fills + matching tag chips */
 .rounds-container .puzzle.meta {
     background: var(--ov-meta-bg) !important;
 
