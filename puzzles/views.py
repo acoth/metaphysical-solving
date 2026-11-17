@@ -265,10 +265,17 @@ def api_overview(request):
     links = list(RoundLink.objects.filter(round_id__in=round_ids).values_list('round_id', 'puzzle_id'))
 
     # 2 queries: puzzles in those rounds or in no round at all, with status/priority joined and tags prefetched.
+#    puzzles = list(
+#        Puzzle.objects
+#        .filter(Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk'), round_id__in=round_ids)))
+#                | ~Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk')))))
+#        .select_related('status', 'priority')
+#        .prefetch_related('tags')
+#    )
+
     puzzles = list(
         Puzzle.objects
-        .filter(Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk'), round_id__in=round_ids)))
-                | ~Q(Exists(RoundLink.objects.filter(puzzle=OuterRef('pk')))))
+        .filter(Q(hunt=hunt) | Q(hunt__isnull=True))
         .select_related('status', 'priority')
         .prefetch_related('tags')
     )
