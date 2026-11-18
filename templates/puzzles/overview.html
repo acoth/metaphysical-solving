@@ -7,11 +7,11 @@
 {% block content %}
 <div id="content">
 {% if not hunt and not current_hunt %}
-  <div style="text-align: center;">
-    You have selected to work on the "current" Hunt, but no Hunt is configured as current in the database at the moment.<br/>
-    Please select a specific Hunt (in the User Profile)
+  <div style="text-align: center; padding-top: 1ex;">
+    <p>You have selected to work on the "current" Hunt, but no Hunt is configured as current in the database at the moment.</p>
+    <p>Please select a specific Hunt (in the User Profile menu, upper right)</p>
   </div>
-  <{% else %}
+  {% else %}
 
   <div class="filtered-view-announcement hidden">
   <i class="ti ti-filter"></i>
