@@ -68,6 +68,43 @@
                 });
     }
 
+    // This calls the API endpoint to change the user's hunt, and updates
+    // it in the header.
+    function changeUserHunt () {
+            const hunt_select = document.getElementById('hunt-select');
+
+            const formData = new FormData();
+            if (hunt_select.value.startsWith("--current--"))
+                    formData.append('hunt', "");
+            else
+            formData.append('hunt', hunt_select.value);
+
+            fetch("{% url 'puzzles.views.user_hunt' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                },
+                body: formData,
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("Network response was not ok");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.hunt) {
+                        document.getElementById('user-hunt').textContent = data.hunt;
+                        location.reload();
+                    } else {
+                        console.error("Error in response:", data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error("Fetch error:", error);
+                });
+    }
+
     // Function to check and request notification permission
     function requestNotificationPermission() {
       if (!("Notification" in window)) {
@@ -168,6 +205,10 @@
       <div class="user-info">
         <span class="username">{{ user.first_name }}</span>
         <span class="location" id="user-location">{{ user.userprofile.location }}</span>
+         <span class="location" id="user-hunt">{% if user.userprofile.active_hunt %}
+          {{ user.userprofile.active_hunt }}
+        {% else %} <i>--current--</i> ({{current_hunt}})
+           {% endif %} </span>
       </div>
       {% if user.userprofile.picture %}
         <img class="user-avatar" src="/profile_photo" />
@@ -199,7 +240,19 @@
         <div class="selectwrap">
         <select onchange="changeUserLocation()" id="location-select" name="location">
              {% for location in locations %}
-                 <option{% if location == user.userprofile.location %} selected="true"{% endif %}>{{ location.name }}</option>
+                 <option{% if location == user.userprofile.location %} selected="true"{% endif %} >{{ location.name }}</option>
+             {% endfor %}
+        </select>
+        <i class="ti ti-chevron-down select-icon"></i>
+        </div>
+    </div>
+      <div id="huntinfo">
+      <div class="user-popup-location-header">Change your Hunt:</div>
+        <div class="selectwrap">
+        <select onchange="changeUserHunt()" id="hunt-select" name="hunt">
+              <option {% if not hunt %} selected="true"{% endif %}> --current-- ({{current_hunt}}) </option>
+             {% for hunt in hunts %}
+                 <option {% if hunt == user.userprofile.active_hunt %} selected="true"{% endif %}>{{ hunt.name }}</option>
              {% endfor %}
         </select>
         <i class="ti ti-chevron-down select-icon"></i>

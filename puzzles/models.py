@@ -1,5 +1,6 @@
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models, ProgrammingError
+from django.dispatch.dispatcher import receiver
 from ordered_model.models import OrderedModel
 
 from django.contrib.auth.models import User
@@ -31,6 +32,7 @@ def quantizedTime():
     return int(time.time()/120)
 
 class Config(models.Model):
+    default_hunt = models.ForeignKey('Hunt', null=True,blank=True,on_delete=models.SET_NULL,)
     default_status = models.ForeignKey('Status', on_delete=models.CASCADE)
     default_priority = models.ForeignKey('Priority', on_delete=models.CASCADE)
     default_tag = models.ForeignKey('Tag', on_delete=models.SET_NULL,blank=True, null=True)
@@ -98,8 +100,7 @@ class Hunt(OrderedModel):
     name = models.CharField(max_length=255)
     url = models.URLField(blank=True, help_text="Hunt website, for reference.")
     is_current = models.BooleanField(default=False,
-                                     help_text="The hunt being solved right now. Only one hunt can be current; "
-                                               "marking this one current un-marks the others.")
+                                     help_text="The hunt being solved right now. At most one hunt can be current.")
 
     class Meta(OrderedModel.Meta):
         constraints = [
@@ -240,8 +241,8 @@ def wrong_answer_message(**kwargs):
     if kwargs['created']:
         wa = kwargs['instance']
         zulip_send(user='b+status',
-                   stream='p%d' % (wa.puzzle.id,),
-                   subject='wrong answer',
+                   stream='puzzles%d' % (wa.puzzle.zulip_stream_suffix()),
+                   subject=wa.puzzle.zulip_topic(),
                    message='Wrong answer: %s' % wa.answer)
 
 post_save.connect(wrong_answer_message, sender=PuzzleWrongAnswer)
@@ -262,6 +263,10 @@ def defaultFolder():
         return Config.objects.get().default_folder
     except ProgrammingError:
         return None
+def defaultHunt():
+    config = Config.objects.first()
+    return config.default_hunt if config else None
+
 def unloved_exempt_statuses():
     return Config.objects.get().unloved_exempt_status.all()
 def unloved_exempt_tags():
@@ -269,8 +274,16 @@ def unloved_exempt_tags():
 
 class Puzzle(OrderedModel):
     title = models.CharField(max_length=200)
-    url = models.URLField(unique=True)
+    url = models.URLField()
+    hunt = models.ForeignKey('Hunt', default=defaultHunt, on_delete=models.SET_DEFAULT, blank=True, null=True)
 
+    class Meta(OrderedModel.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=['url', 'hunt'],
+                name='unique_hunt_x_url'
+            )
+        ]
     status = models.ForeignKey('Status', default=defaultStatus, on_delete=models.SET_DEFAULT)
     priority = models.ForeignKey('Priority', default=defaultPriority, on_delete=models.SET_DEFAULT)
     tags = models.ManyToManyField('Tag', default=defaultTags, blank=True)
@@ -281,6 +294,7 @@ class Puzzle(OrderedModel):
                                     help_text="The round(s) a given puzzle belongs to. A puzzle (e.g. a cross-round meta) can be in several.")
 
     solvers = models.ManyToManyField(User, blank=True)
+    stream_suffix = models.CharField(max_length=200,blank=True)
     topic_name = models.CharField(max_length=200,blank=True)
     spreadsheet = models.URLField(blank=True)
     answer = models.CharField(max_length=200, blank=True)
@@ -290,6 +304,13 @@ class Puzzle(OrderedModel):
                                  help_text="Template to copy when first making this puzzle.  Leave null to create from scratch.")
     folder = models.ForeignKey('PuzzleFolder',null=True,blank=True,default=defaultFolder, on_delete=models.SET_NULL,
                                help_text="Google Drive folder to use to share this puzzle spreadsheet when first making it.  Leave null to share by making world-editable instead.")
+
+    def clean(self):
+        super().clean()
+        if self.pk and self.hunt_id is not None:
+            for r in self.rounds.all():
+                if not self.hunt_id == r.hunt_id:
+                    raise ValidationError("Puzzle %d  (Hunt %d) assigned to round %d (Hunt %d) are in different Hunts" % (self.id,self.hunt_id,r.id,r.hunt_id))
 
     def __str__(self):
         return self.title
@@ -310,6 +331,14 @@ class Puzzle(OrderedModel):
             return {'answer': self.answer}
         else:
             return {'status': self.status}
+
+    def zulip_stream_suffix(self):
+        if not self.stream_suffix:
+            if self.hunt:
+                self.stream_suffix = "-of-%s-%d"%(slugify(self.hunt.name),self.hunt.id)
+            else:
+                self.stream_suffix = "-of-no-hunt"
+        return self.stream_suffix
 
     def zulip_topic(self):
         if not self.topic_name:
@@ -393,31 +422,45 @@ class Puzzle(OrderedModel):
 
         if self.answer != old_answer:
             zulip_send(user='b+status',
-                       stream='puzzles',
+                       stream='puzzles'+self.zulip_stream_suffix(),
                        subject=self.zulip_topic(),
                        message=':thumbs_up: **%s** is correct!' % self.answer)
 
             round_names = self.round_names()
             zulip_send(user='b+status',
-                       stream='status',
+                       stream='status'+self.zulip_stream_suffix(),
                        subject='solved',
                        message='Puzzle %s solved%s' % (self.title, ' [%s]' % round_names if round_names else ''))
+
+@receiver(m2m_changed, sender=Puzzle.rounds.through)
+def handle_rounds_m2m_change(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action == 'post_add':
+        if instance.hunt_id is not None:
+            for r in instance.rounds.all():
+                if not instance.hunt_id == r.hunt_id:
+                    raise ValidationError(
+                        "Puzzle %d  (Hunt %d) assigned to round %d (Hunt %d) are in different Hunts" % (instance.id,
+                                                                                                   instance.hunt_id, r.id,
+                                                                                                   r.hunt_id))
+
 
 def send_puzzle_zulip(**kwargs):
     if kwargs['created']:
         puzzle = kwargs['instance']
         zulip_send(user='b+status',
-                   stream='puzzles',
+                   stream="puzzles"+puzzle.zulip_stream_suffix(),
                    subject=puzzle.zulip_topic(),
                    message='New puzzle "%s"' % (puzzle.title,))
         zulip_send(user='b+status',
-                   stream='status',
+                   stream='status'+puzzle.zulip_stream_suffix(),
                    subject='new puzzle',
                    message='New puzzle [%s](%s) ([p%d](%s))' %
                    (puzzle.title, puzzle.url, puzzle.id,
                     settings.BASE_URL + reverse('puzzles.views.puzzle', args=[puzzle.id])))
 
+# Probably better not to actively notify that tags (which might be due to a different Hunt) are created
 def notify_of_new_tag(**kwargs):
+    return
     if kwargs['created']:
         tag = kwargs['instance']
         zulip_send(user='b+status',
@@ -439,7 +482,7 @@ def notify_tag_on_add(**kwargs):
         for tag in new_tags:
             print("Tag %d added to puzzle %s"%(tag.pk, puzzle.title))
             zulip_send(user='b+status',
-                       stream="tags",
+                       stream="tags"+puzzle.zulip_stream_suffix(),
                        subject=tag.topic(),
                        message='Puzzle [%s](%s) ([p%d](%s)) tagged as %s' %
                                (puzzle.title, puzzle.url, puzzle.id,
@@ -478,14 +521,14 @@ class UserProfile(models.Model):
 
     location = models.ForeignKey('Location', on_delete=models.CASCADE)
     picture = models.TextField(null=True, blank=True)
-
+    active_hunt = models.ForeignKey('Hunt', on_delete=models.SET_NULL, null=True, blank=True)
 
 def make_user_profile(**kwargs):
     user = kwargs['instance']
     default_location = Location.objects.get(name='unknown')
     user_profile, _ = UserProfile.objects.get_or_create(
         user=user,
-        defaults={'location': default_location})
+        defaults={'location': default_location,'active_hunt':Hunt.current()})
     grant_access((folder.fid for folder in PuzzleFolder.objects.filter(shareOnly__isnull=True)),[user.email])
     user_zulip_status, _ = UserZulipStatus.objects.get_or_create(user=user)
     if user_zulip_status.status == UserZulipStatus.NONE \
