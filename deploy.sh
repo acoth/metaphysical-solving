@@ -8,4 +8,11 @@ cd /home/puzzle/metaphysical-solving
 git pull
 . env/bin/activate
 yes yes | python manage.py collectstatic # sigh
-touch solving/wsgi.py
+
+#Apache version
+#touch solving/wsgi.py
+
+# Nginx/Gunicorn version (access to this single command must be
+# granted via sudoers, which can be done by (as root) copying the
+# included allow-gunicorn-restart to /etc/sudoers.d)
+sudo /usr/bin/systemctl restart gunicorn

@@ -1,0 +1,2 @@
+puzzle ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart gunicorn ""
+
