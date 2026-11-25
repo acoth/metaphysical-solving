@@ -44,13 +44,13 @@ def extract_activity_log_from_file(scrape_config,html_content):
 
 
 
-def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
+def create_puzzle(title, url, hunt, round_obj, is_meta=False, answer=None, desc=None):
     # url = base_url + url
-    print(title, url, round_obj, is_meta, answer)
+    print(title, url, hunt, round_obj, is_meta, answer)
     puzzle = None
 
     try:
-        puzzle = Puzzle.objects.get(url=url)
+        puzzle = Puzzle.objects.get(url=url, hunt=hunt)
         print('Already exists')
         if round_obj is not None:
             # Puzzles (e.g. cross-round metas) can be listed under several rounds; .add() is idempotent.
@@ -71,9 +71,9 @@ def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
 
         try:
             if desc:
-                puzzle = Puzzle.objects.create(title=title, url=url, checkAnswerLink='', description=desc)
+                puzzle = Puzzle.objects.create(title=title, url=url, hunt = hunt, checkAnswerLink='', description=desc)
             else:
-                puzzle = Puzzle.objects.create(title=title, url=url, checkAnswerLink='')
+                puzzle = Puzzle.objects.create(title=title, url=url, hunt = hunt, checkAnswerLink='')
             if round_obj is not None:
                 puzzle.rounds.add(round_obj)
             if is_meta:
@@ -81,7 +81,7 @@ def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
             print("Created puzzle (%s, %s)" % (title, url))
         except django.db.utils.IntegrityError:
             # puzzle already exists (race)
-            puzzle = Puzzle.objects.filter(url=url).first()
+            puzzle = Puzzle.objects.filter(url=url,hunt=hunt).first()
 
     if answer is not None and puzzle is not None:
         puzzle.answer = answer
@@ -107,7 +107,7 @@ def sync_state(scrape_config,state):
     else:
         hunt = Hunt.current()
     rounds_by_name = {r.name: r for r in Round.objects.filter(hunt=hunt)}
-    puzzles_by_url = {p.url: p for p in Puzzle.objects.all()}
+    puzzles_by_url = {p.url: p for p in Puzzle.objects.filter(hunt=hunt)}
     RoundLink = Puzzle.rounds.through
     memberships = set(RoundLink.objects.values_list('puzzle_id', 'round_id'))
 
@@ -126,8 +126,8 @@ def sync_state(scrape_config,state):
             if puzzle_obj is None:
                 print("[%s](%s) in %s, '%s'" % (puzzle_url, puzzle['title'], round['title'], puzzle_desc))
                 try:
-                    puzzle_obj = create_puzzle(puzzle['title'], puzzle_url, round_obj=round_obj,
-                                               desc=puzzle_desc, is_meta=puzzle_is_meta)
+                    puzzle_obj = create_puzzle(puzzle['title'], puzzle_url, hunt, round_obj=round_obj,
+                                               is_meta=puzzle_is_meta, desc=puzzle_desc)
                 except Exception as e:
                     print (e)
                     continue
