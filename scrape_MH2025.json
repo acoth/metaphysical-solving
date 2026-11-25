@@ -1,0 +1,7 @@
+{"hunt": "Two P.I. Noir",
+  "login": {"url": "https://puzzles.mit.edu/2025/hunt/",
+            "username": "",
+            "password": ""},
+  "all_puzzles_url": "https://puzzles.mit.edu/2025/hunt/all_puzzles",
+  "regex": "window\\.initialAllPuzzlesState\\s*=\\s*(.*?)$",
+  "puzzle_url_prefix": "https://puzzles.mit.edu/2025/hunt/puzzles/"}

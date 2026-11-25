@@ -14,15 +14,11 @@ from datetime import datetime
 
 from puzzles import puzzlelogin
 
-base_url = 'https://www.starrats.org'
-
-
 def get_solved_status():
     # Looked up at run time rather than import time, so merely importing this module needs no DB row.
     return Status.objects.get(text='solved!')
 
-
-def extract_activity_log_from_file(html_content):
+def extract_activity_log_from_file(scrape_config,html_content):
     # Create BeautifulSoup object
     soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -31,10 +27,10 @@ def extract_activity_log_from_file(html_content):
 
     # Look for the script containing window.initialActivityLog
     for script in scripts:
-        if script.string and 'window.initialAllPuzzlesState' in script.string:
+        if script.string:
             # Extract the array content using regex
             #print(script.string)
-            match = re.search(r'window\.initialAllPuzzlesState\s*=\s*(.*?)$',
+            match = re.search(scrape_config["regex"],
                             script.string, re.DOTALL)
             if match:
                 # Get the JSON string and parse it
@@ -96,7 +92,7 @@ def create_puzzle(title, url, round_obj, is_meta=False, answer=None, desc=None):
 def html_to_tag(html):
     return html
 
-PUZZLE_URL_PREFIX = "https://www.two-pi-noir.agency/puzzles/"
+PUZZLE_URL_PREFIX = "https://puzzles.mit.edu/2025/hunt/puzzles/"
 
 
 def sync_state(state):
@@ -166,8 +162,12 @@ class Command(BaseCommand):
                             help="Read the all-puzzles state JSON (same shape as window.initialAllPuzzlesState) "
                                  "from this file instead of fetching it from the hunt site.")
         parser.add_argument('--dry-run',action='store_true')
+        parser.add_argument('--config', type=str)
     def handle(self, *args, **kwargs):
-        all_puzzles_url = "https://www.two-pi-noir.agency/all_puzzles"
+
+        with open(kwargs['config']) as f:
+            scrape_config = json.load(f)
+            all_puzzles_url = scrape_config['all_puzzles_url']
 
         print("Beginning puzzlescrape run at " + datetime.now().isoformat())
 
@@ -175,8 +175,8 @@ class Command(BaseCommand):
             with open(kwargs['file']) as f:
                 state = json.load(f)
         else:
-            response = puzzlelogin.fetch_with_single_login(all_puzzles_url)
-            state = extract_activity_log_from_file(response)
+            response = puzzlelogin.fetch_with_single_login(scrape_config)
+            state = extract_activity_log_from_file(scrape_config,response)
 
         if kwargs['dry_run']:
             print_dry_run(state)
