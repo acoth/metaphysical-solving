@@ -103,7 +103,7 @@ def sync_state(scrape_config,state):
     solved_status = get_solved_status()
     # Rounds are scoped to the current hunt so same-named rounds from past hunts aren't reused.
     if scrape_config['hunt'] != "":
-        (hunt,_) = Hunt.objects.get_or_create(title=scrape_config['hunt'],defaults={'url':scrape_config['login']['url'],'is_current':False})[0]
+        (hunt,_) = Hunt.objects.get_or_create(name=scrape_config['hunt'],defaults={'url':scrape_config['login']['url'],'is_current':False})[0]
     else:
         hunt = Hunt.current()
     rounds_by_name = {r.name: r for r in Round.objects.filter(hunt=hunt)}
