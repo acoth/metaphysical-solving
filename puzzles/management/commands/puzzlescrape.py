@@ -95,14 +95,17 @@ def html_to_tag(html):
 PUZZLE_URL_PREFIX = "https://puzzles.mit.edu/2025/hunt/puzzles/"
 
 
-def sync_state(state):
+def sync_state(scrape_config,state):
     """Create/update rounds and puzzles from the hunt's all-puzzles state.
 
     Batched: existing puzzles, the current hunt's rounds and existing round memberships are each loaded
     with one query up front, so already-known puzzles cost no queries unless something changed."""
     solved_status = get_solved_status()
     # Rounds are scoped to the current hunt so same-named rounds from past hunts aren't reused.
-    hunt = Hunt.current()
+    if scrape_config['hunt'] != "":
+        (hunt,_) = Hunt.objects.get_or_create(title=scrape_config['hunt'],defaults={'url':scrape_config['login']['url'],'is_current':False})[0]
+    else:
+        hunt = Hunt.current()
     rounds_by_name = {r.name: r for r in Round.objects.filter(hunt=hunt)}
     puzzles_by_url = {p.url: p for p in Puzzle.objects.all()}
     RoundLink = Puzzle.rounds.through
@@ -116,7 +119,7 @@ def sync_state(state):
             if puzzle['state'] != 'unlocked':
                 continue
             puzzle_answer = puzzle.get('answer', None)
-            puzzle_url = PUZZLE_URL_PREFIX + puzzle['slug']
+            puzzle_url = scrape_config['puzzle_url_prefix'] + puzzle['slug']
             puzzle_desc = puzzle.get('desc', None)
             puzzle_is_meta = puzzle.get('is_meta', None)
             puzzle_obj = puzzles_by_url.get(puzzle_url)
@@ -142,17 +145,17 @@ def sync_state(state):
                 puzzle_obj.save()
 
 
-def print_dry_run(state):
+def print_dry_run(scrape_config,state):
     known_urls = set(Puzzle.objects.values_list('url', flat=True))
     for round in state['rounds']:
         for puzzle in round['puzzles']:
             if puzzle['state'] == 'unlocked':
                 puzzle_answer = puzzle.get('answer', None)
-                puzzle_url = PUZZLE_URL_PREFIX + puzzle['slug']
+                puzzle_url = scrape_config['puzzle_url_prefix'] + puzzle['slug']
                 if puzzle_answer:
                     print(puzzle_answer)
                 elif puzzle_url not in known_urls:
-                    print("[%s](%s) in %s" % (puzzle_url, puzzle['title'], round['title']))
+                    print("[%s](%s) in %s (%s)" % (puzzle_url, puzzle['title'], round['title'],scrape_config['hunt']))
 
 
 class Command(BaseCommand):
@@ -167,7 +170,6 @@ class Command(BaseCommand):
 
         with open(kwargs['config']) as f:
             scrape_config = json.load(f)
-            all_puzzles_url = scrape_config['all_puzzles_url']
 
         print("Beginning puzzlescrape run at " + datetime.now().isoformat())
 
@@ -179,8 +181,8 @@ class Command(BaseCommand):
             state = extract_activity_log_from_file(scrape_config,response)
 
         if kwargs['dry_run']:
-            print_dry_run(state)
+            print_dry_run(scrape_config,state)
         else:
-            sync_state(state)
+            sync_state(scrape_config,state)
 
         print("Finished puzzlescrape run")
