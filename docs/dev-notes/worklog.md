@@ -157,3 +157,18 @@ Owner's asks: make the nesting more apparent, cut down on lines, and give the ov
   - Collapse chevron is on the left at every level and points right when collapsed.
   - Right edges line up at every depth through `--ov-right-inset` (14px = body padding 6 + row padding 8). Header paddings are derived from it,
     and the low-priority status, which is plain text, has no side padding, so its text lines up with the chip edges.
+
+## 2026-11-27 — overview: status-column redesign (branch `nested-overview`)
+
+- Previous design preserved at branch `nested-overview-v1` (a31d5dc); the new design is one commit on top.
+- Ported the prototype in ~/reference (BRIEF.md + reference.html): each top-level round is a card whose rows
+  are a two-column grid (fixed status column + title column); nesting indents only the title column with
+  guide lines, so statuses line up at every depth. Help statuses (insight/bodies/extraction) tint their cell.
+- Status mapping: not a puzzle/not started → idle, being worked on → active, we got this! → got,
+  needs extraction/insight/bodies → help kinds, currently impuzzlable → blocked, abandoned → dead,
+  answer present → solved.
+- Kept: 3-column masonry, filter popup (status/priority/round), show descriptions/tags toggles, collapsed
+  rounds in localStorage, solver count/history dialog, link-out, 60s refresh. Quick filters (All / Unsolved /
+  Needs help) are presets over the Status filter. Header counts now ignore filters (shared puzzles count once).
+- Not ported: dark mode (the app has none), Atkinson Hyperlegible (kept Inter), the marker legend.
+- Status column shrinks via container queries: 8.25rem when the card is ≤560px, icon-only at ≤400px.

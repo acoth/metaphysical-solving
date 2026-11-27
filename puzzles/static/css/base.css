@@ -946,361 +946,461 @@ select {
     }
 }
 
-/* Overview: rounds and puzzles.
-   - Top-level rounds are white cards with a teal-tinted header and a progress bar.
-   - Nested rounds are not boxed: a chevron + title, then their contents indented under one guide line.
-   - Puzzle rows have no borders; colour is reserved for meaning (solved, meta, capstone, priority).
-   Palette is scoped here so other pages are unaffected. */
+/* Overview: rounds and puzzles (status-column design).
+   Every row is a two-column grid: a fixed-width status cell on the left, title and details on the right.
+   Nesting only indents the right column (thin guide lines, one per level), so statuses line up in one
+   column at every depth. Statuses that need help tint their status cell. Sub-round headers are tinted
+   bands; each top-level round is a card with a bigger header.
+   Tokens are scoped to the overview so other pages are unaffected. */
+
+.rounds-container,
+.ov-quick {
+    --ov-surface: #ffffff;
+    --ov-ink: #17212b;
+    --ov-ink-2: #4f5a67;
+    --ov-ink-3: #8c95a0;
+    --ov-rule: #e5e9ee;
+    --ov-rule-2: #d3dae1;
+    --ov-tint: #f4f6f8;
+    --ov-hover: rgba(23, 33, 43, .05);
+    --ov-accent: var(--primary-light);
+    --ov-accent-wash: color-mix(in srgb, var(--primary-light) 9%, white);
+    --ov-meta-bg: #fff6da;
+    --ov-meta-pill: #f5e1a0;
+    --ov-meta-ink: #6a4f00;
+    --ov-cap-bg: #e3f2f6;
+    --ov-cap-pill: #c0e3ec;
+    --ov-cap-ink: #0b4e5f;
+    --ov-unread: #2b67e0;
+    --ov-guide: #cbd3db;
+    --ov-flash: #ffe27a;
+    --s-idle: #8f98a3;
+    --s-active: #2b67e0;
+    --s-got: #0f9478;
+    --s-bodies: #e0461f;
+    --s-insight: #7a4bd6;
+    --s-extract: #c08200;
+    --s-blocked: #5c6876;
+    --s-dead: #a2a8af;
+    --s-solved: #2d8a3a;
+}
 
 .rounds-container {
-    --ov-accent: var(--primary);
-    --ov-accent-soft: color-mix(in srgb, var(--primary) 15%, white);
-    --ov-card-edge: color-mix(in srgb, var(--primary) 16%, white);
-    --ov-read-ink: #5b6676;      /* opened puzzles: lighter, regular weight */
-    --ov-solved-title: #8a94a3;  /* solved: lightest */
-    /* Geometry, so coloured rows fit their container symmetrically:
-       - --ov-gutter: gap between a row's box and its container on both sides (the card edge at top level;
-         the guide line on the left / card edge on the right when nested).
-       - --ov-row-pad: padding inside every row, left and right.
-       Chips, answers and round counts all end on one line: card edge - gutter - row-pad. */
-    --ov-gutter: 8px;
-    --ov-row-pad: 8px;
-    --ov-guide: color-mix(in srgb, var(--primary) 22%, white);
-    --ov-ink: var(--gray-800);
-    --ov-muted: #6b7686;
-    --ov-chip: #eef1f5;
-    --ov-hover: #f3f6f8;
-    --ov-solved-ink: #3d7a37;
-    --ov-solved-chip: #e3f0e1;
-    --ov-meta-bg: #fcf4d2;
-    --ov-meta-ink: #7a5d00;
-    --ov-capstone-bg: #dcf3f5;
-    --ov-capstone-ink: #0f6670;
-    --ov-high-chip: #fde3c3;
-    --ov-high-ink: #8a4a07;
+    column-count: 3;
+    column-gap: 16px;
+    margin: 12px 20px 20px;
 }
 
-.roundwrapper {
-    break-inside: avoid;
-    padding-bottom: 12px;
-    padding-top: 2px;
-}
-
-/* Top-level round card */
-.round {
-    break-inside: avoid;
-    background: white;
-    border-radius: 10px;
-    height: fit-content;
-    margin-bottom: 0;
-    border: 1px solid var(--ov-card-edge);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 3px 8px rgba(15, 23, 42, 0.05);
-    overflow: hidden;
-}
-
-.round-header {
+/* Quick filters: presets over the Status filter in the filter popup. */
+.ov-quick {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
-    padding: 8px calc(var(--ov-gutter) + var(--ov-row-pad)) 7px 6px;
-    background: var(--ov-accent-soft);
+    margin: 16px 20px 0;
+    font-size: .875rem;
+    color: var(--ov-ink-2);
 
-    & .round-header-left {
-        flex: 1;
-        min-width: 0;
-    }
-
-    & .round-title {
-        color: var(--ov-accent);
-        font-weight: 650;
-        font-size: 0.95rem;
-        line-height: 1.25;
-    }
-
-    & .collapse-round-button {
-        flex: none;
-        width: 22px;
-        height: 22px;
-        border: none;
-        border-radius: 6px;
-        background: none;
-        color: var(--ov-muted);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
+    & > span { margin-right: 2px; }
+    & button {
+        border: 0;
+        background: var(--ov-surface);
+        padding: 4px 11px;
+        border-radius: 999px;
         cursor: pointer;
-
-        &:hover {
-            background: rgba(15, 23, 42, 0.06);
-            color: var(--ov-ink);
-        }
+        font: inherit;
+        color: var(--ov-ink-2);
+        box-shadow: inset 0 0 0 1px var(--ov-rule-2);
     }
+    & button:hover { background: #f8fafb; }
+    & button[aria-pressed="true"] {
+        box-shadow: inset 0 0 0 1.5px var(--ov-ink);
+        color: var(--ov-ink);
+        font-weight: 650;
+    }
+    & .n { color: var(--ov-ink-3); margin-left: 5px; font-weight: 400; font-variant-numeric: tabular-nums; }
+}
 
-    & .collapse-chevron {
-        transition: transform 0.2s ease;
+.ov-empty {
+    margin: 0;
+    padding: 18px 16px;
+    color: var(--ov-ink-2);
+    font-size: .9375rem;
+    background: var(--ov-surface);
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px var(--ov-rule-2);
+    column-span: all;
+}
+
+/* One card per top-level round */
+.ov-panel {
+    container: ovpanel / inline-size;
+    break-inside: avoid;
+    margin-bottom: 16px;
+    background: var(--ov-surface);
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px var(--ov-rule-2), 0 1px 2px rgba(16, 24, 40, .04);
+    overflow: hidden;  /* last row's status cell follows the rounded corner */
+    color: var(--ov-ink);
+    line-height: 1.35;
+    font-size: 15px;
+    --paper: var(--ov-surface);
+
+    & :focus-visible {
+        outline: 2px solid var(--ov-unread);
+        outline-offset: 2px;
+        border-radius: 3px;
+    }
+    & button { font: inherit; color: inherit; }
+}
+
+.ov-chev {
+    flex: none;
+    color: var(--ov-ink-3);
+    transition: transform .15s;
+}
+[aria-expanded="false"] > .ov-chev { transform: rotate(-90deg); }
+.ov-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+}
+
+/* Top-level header */
+.ov-root {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 14px;
+    padding: 14px 16px 13px;
+
+    & .ov-chev { margin-top: 3px; }
+}
+.ov-rootname {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.ov-rootdesc {
+    display: block;
+    font-size: .875rem;
+    color: var(--ov-ink-2);
+    margin-top: 2px;
+}
+.ov-rootcount {
+    font-size: .875rem;
+    color: var(--ov-ink-2);
+    white-space: nowrap;
+    padding-top: 2px;
+    font-variant-numeric: tabular-nums;
+
+    & b { color: var(--ov-ink); font-size: 1.05rem; }
+}
+.ov-rootbar {
+    grid-column: 1 / -1;
+    height: 4px;
+    margin-top: 10px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--ov-accent) 16%, transparent);
+    overflow: hidden;
+
+    & i { display: block; height: 100%; background: var(--ov-accent); }
+}
+.ov-summary {
+    grid-column: 1 / -1;
+    font-size: .8125rem;
+    color: var(--ov-ink-2);
+    margin-top: 5px;
+
+    & button {
+        border: 0;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        color: var(--s-bodies) !important;
+        font-weight: 700;
+        text-decoration: underline;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
     }
 }
 
-.round-header-right {
+/* Rows */
+.ov-row {
+    --sw: 10.5rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--sw) minmax(0, 1fr);
+    border-top: 1px solid var(--ov-rule);
+}
+/* Hover/flash overlay: blended, so it shows over the status cell's own background without washing out text */
+.ov-row::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: transparent;
+    mix-blend-mode: multiply;
+}
+.ov-row.hl::after,
+.ov-row:focus-within::after { background: var(--ov-hover); }
+.ov-row.flash::after { animation: ov-flash 1.5s ease-out; }
+@keyframes ov-flash {
+    0%, 35% { background: var(--ov-flash); }
+    100% { background: transparent; }
+}
+
+.ov-state {
     display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 9px 8px 9px 13px;
+    background: var(--ov-tint);
+    font-size: .8125rem;
+    line-height: 1.35rem;
+    color: var(--ov-ink-2);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.ov-ic {
+    flex: none;
+    color: var(--sc);
+    margin-top: calc((1.35rem - 16px) / 2);
+}
+.k-idle .ov-label, .k-dead .ov-label { color: var(--ov-ink-3); }
+.help .ov-state { background: color-mix(in srgb, var(--sc) 11%, var(--ov-surface)); }
+.help .ov-label { color: var(--sc); font-weight: 700; }
+.ov-ans { font-weight: 700; letter-spacing: .04em; color: var(--s-solved); }
+.ov-ans-m { display: none; font-size: .8125rem; }
+
+.k-idle { --sc: var(--s-idle); }
+.k-active { --sc: var(--s-active); }
+.k-got { --sc: var(--s-got); }
+.k-bodies { --sc: var(--s-bodies); }
+.k-insight { --sc: var(--s-insight); }
+.k-extract { --sc: var(--s-extract); }
+.k-blocked { --sc: var(--s-blocked); }
+.k-dead { --sc: var(--s-dead); }
+.k-solved { --sc: var(--s-solved); }
+
+.ov-main {
+    display: flex;
+    min-width: 0;
+    padding-left: 6px;
+}
+.ov-guide {
+    flex: none;
+    width: 18px;
+    background: linear-gradient(var(--ov-guide), var(--ov-guide)) 8.25px 0 / 1.5px 100% no-repeat;
+}
+.ov-body {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px 9px 18px;
+}
+.ov-udot {
+    position: absolute;
+    left: 4px;
+    top: calc(9px + .675rem - 3.5px);
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ov-unread);
+}
+.ov-tline {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.35rem;
+}
+.ov-tmain { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ov-title { color: inherit; text-decoration: none; }
+.ov-title:hover {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+}
+.ov-nw { white-space: nowrap; }
+.ov-ext {
+    display: inline;
+    margin-left: 4px;
+    color: var(--ov-ink-3);
+    opacity: 0;
+    transition: opacity .12s;
+    font-size: .85em;
+    & i { display: inline; }
+    &:hover { color: var(--ov-accent); }
+}
+.ov-row.hl .ov-ext,
+.ov-row:focus-within .ov-ext { opacity: 1; }
+
+.unread .ov-title { font-weight: 700; }
+.k-solved .ov-title, .k-dead .ov-title { color: var(--ov-ink-3); }
+.k-dead .ov-title { text-decoration: line-through; text-decoration-thickness: 1px; }
+.is-low .ov-title { color: var(--ov-ink-2); }
+
+/* Right side of the title line: who's on it, then priority and tag pills */
+.ov-aside {
+    flex: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 50%;
+    padding-top: .15rem;
+}
+.ov-solvers {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    border: 0;
+    background: none;
+    padding: 0 2px;
+    cursor: pointer;
+    font-size: .75rem !important;
+    line-height: 1.1rem;
+    color: var(--ov-ink-2) !important;
+    font-variant-numeric: tabular-nums;
+    &:hover { color: var(--ov-ink) !important; }
+    &.ov-history { color: var(--ov-ink-3) !important; opacity: 0; }
+}
+.ov-row.hl .ov-history,
+.ov-row:focus-within .ov-history { opacity: 1; }
+.ov-pill {
+    display: inline-block;
+    padding: 1px 7px 2px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+    line-height: 1.1rem;
+    white-space: nowrap;
+    background: var(--ov-tint);
+    color: var(--ov-ink-2);
+}
+.ov-pill-meta { background: var(--ov-meta-pill); color: var(--ov-meta-ink); }
+.ov-pill-capstone { background: var(--ov-cap-pill); color: var(--ov-cap-ink); }
+.ov-pill-high { background: #fde3d3; color: #9a3412; }
+.ov-pill-asap { background: var(--asap-priority, #ea580c); color: #fff; }
+.ov-pill-tag { font-weight: 500; }
+.ov-tags { display: contents; }
+.ov-tags.hidden { display: none; }
+
+.is-meta { background: var(--ov-meta-bg); --paper: var(--ov-meta-bg); }
+.is-capstone { background: var(--ov-cap-bg); --paper: var(--ov-cap-bg); }
+.is-meta .ov-state { background: color-mix(in srgb, var(--ov-meta-bg) 55%, var(--ov-meta-pill)); }
+.is-capstone .ov-state { background: color-mix(in srgb, var(--ov-cap-bg) 55%, var(--ov-cap-pill)); }
+
+.ov-sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
+    margin-top: 2px;
+    font-size: .8125rem;
+    color: var(--ov-ink-2);
+    overflow-wrap: anywhere;
+
+    & .hidden { display: none; }
+}
+.ov-also {
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--ov-accent) !important;
+    display: inline-flex;
     align-items: center;
     gap: 4px;
-    flex: none;
+    font-size: .8125rem !important;
+    text-align: left;
+    &:hover { text-decoration: underline; text-underline-offset: 3px; }
+    & svg { flex: none; }
 }
 
-.round-description {
-    font-size: 0.7rem;
-    color: var(--ov-muted);
-    font-weight: 450;
-    line-height: 1.3;
-    margin-top: 1px;
-}
-
-/* "3/14": counts the round and everything nested in it */
-.round-progress {
-    font-size: 0.7rem;
-    font-weight: 550;
-    color: var(--ov-muted);
+/* Sub-round header band */
+.ov-head { border-top-color: var(--ov-rule-2); }
+.ov-head .ov-state {
+    background: var(--ov-accent-wash);
+    color: var(--ov-accent);
+    font-weight: 700;
+    align-items: center;
+    gap: 8px;
     font-variant-numeric: tabular-nums;
+}
+.ov-head .ov-main { background: var(--ov-accent-wash); }
+.ov-head .ov-toggle {
+    flex: 1;
+    padding: 8px 12px 8px 0;
+}
+.ov-head .ov-chev { color: var(--ov-accent); margin-top: 1px; }
+.ov-rname { display: block; font-weight: 700; color: var(--ov-accent); }
+.ov-rdesc { display: block; font-size: .8125rem; color: var(--ov-ink-2); font-weight: 400; }
+.ov-minibar {
+    display: block;
+    flex: none;
+    width: 2.6rem;
+    height: 4px;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--ov-accent) 20%, transparent);
+    overflow: hidden;
+    & i { display: block; height: 100%; background: var(--ov-accent); }
+}
+
+/* Visually hidden but still read out (status text on narrow screens) */
+.ov-vh {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
     white-space: nowrap;
-
-    &.complete {
-        color: var(--ov-solved-ink);
-    }
 }
 
-.round-progress-bar {
-    height: 3px;
-    background: color-mix(in srgb, var(--primary) 10%, white);
-
-    & span {
-        display: block;
-        height: 100%;
-        background: var(--success);
-        border-radius: 0 2px 2px 0;
-        transition: width 0.4s ease;
-    }
+/* Card narrower than the full design (three-column layout): slimmer status column */
+@container ovpanel (max-width: 560px) {
+    .ov-row { --sw: 8.25rem; }
+    .ov-state { padding-left: 11px; font-size: .75rem; gap: 6px; }
+    .ov-head .ov-state { gap: 6px; }
+    .ov-minibar { width: 2rem; }
+    .ov-guide { width: 16px; background-position: 7.25px 0; }
 }
 
-.round-body {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 6px var(--ov-gutter) 8px;
+/* Narrow: icon-only status column */
+@container ovpanel (max-width: 400px) {
+    .ov-row { --sw: 2.5rem; }
+    .ov-label, .ov-minibar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .ov-state { padding-left: 11px; padding-right: 3px; }
+    .ov-head .ov-state { font-size: .7rem; padding-left: 5px; padding-right: 0; }
+    .ov-ans-m { display: block; margin-top: 1px; }
+    .ov-guide { width: 14px; background-position: 6.25px 0; }
+    .ov-root { padding: 12px 12px 11px; }
 }
 
-.round.collapsed > .round-body {
-    display: none;
+@media (hover: none) {
+    .ov-ext { opacity: .55; }
+    .ov-solvers.ov-history { display: none; }
 }
 
-.round.collapsed > .round-header .collapse-chevron {
-    transform: rotate(-90deg);    /* points right when closed, tree-style, at every level */
+@media (prefers-reduced-motion: reduce) {
+    .ov-chev, .ov-ext { transition: none; }
 }
 
-/* Nested rounds: an indented section, not a box */
-.round.child-round {
-    background: none;
-    border: none;          /* the card outline is for top-level rounds only */
-    box-shadow: none;
-    border-radius: 0;
-    overflow: visible;
-    margin-top: 6px;
-
-    & > .round-header {
-        background: none;
-        padding: 2px var(--ov-row-pad) 2px 0;   /* count lines up with the chips in rows */
-        gap: 2px;
-
-        & .round-title {
-            font-size: 0.8rem;
-            font-weight: 650;
-            color: var(--primary-light);
-        }
-
-        & .collapse-round-button {
-            width: 20px;
-            height: 20px;
-        }
-    }
-
-    & > .round-body {
-        margin-left: 9px;            /* lines the guide up under the chevron */
-        padding: 2px 0 2px var(--ov-gutter);
-        border-left: 2px solid var(--ov-guide);
-    }
-
+@media (max-width: 1200px) {
+    .rounds-container { column-count: 2; }
 }
 
-.round.depth-3 > .round-body { border-left-color: color-mix(in srgb, var(--primary) 15%, white); }
-.round.depth-4 > .round-body { border-left-color: color-mix(in srgb, var(--primary) 10%, white); }
-.round.depth-3 > .round-header .round-title,
-.round.depth-4 > .round-header .round-title { color: color-mix(in srgb, var(--primary-light) 80%, var(--gray-500)); }
-
-.round-chevron {
-    position: relative;
-    top: 1px;
-    margin: 0 2px;
-}
-
-/* Puzzle rows */
-.puzzle-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.rounds-container .puzzle {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px var(--ov-row-pad) 5px;
-    background: none;
-    border: none;
-    border-radius: 6px;
-    min-width: 0;
-
-    &:hover {
-        background: var(--ov-hover);
-    }
-
-    &:hover .solver-count.show-on-hover {
-        display: flex;
-    }
-
-    & .puzzle-top {
-        gap: 8px;
-        align-items: flex-start;
-    }
-
-    & .puzzle-header {
-        display: block;
-        margin: 0;
-        line-height: 1.35;
-        min-width: 0;
-    }
-
-    & .puzzle-title {
-        font-weight: 400;
-        font-size: 0.875rem;
-        color: var(--ov-read-ink);
-    }
-
-    & .puzzle-link {
-        color: var(--ov-muted);
-        font-size: 0.8rem;
-        margin-left: 3px;
-        position: relative;
-        top: 1px;
-
-        &:hover {
-            color: var(--ov-accent);
-        }
-    }
-
-    & .puzzle-description {
-        font-size: 0.72rem;
-        line-height: 1.3;
-        color: var(--ov-muted);
-        margin: 0;
-        top: 0;
-    }
-
-    & .puzzle-meta {
-        margin: 1px 0 0;
-    }
-
-    & .badges {
-        top: 1px;
-        flex: none;
-        max-width: 55%;
-        gap: 2px;
-    }
-
-    & .solver-count {
-        color: var(--ov-accent);
-        font-weight: 550;
-        margin-right: 4px;
-        padding: 0;
-    }
-
-    & .status-badge {
-        background: var(--ov-chip);
-        color: #3b4656;
-        border-radius: 10px;
-        padding: 1px 8px;
-        font-size: 0.7rem;
-        font-weight: 500;
-        box-shadow: none;
-    }
-
-    & .answer-badge {
-        background: var(--ov-solved-chip);
-        color: var(--ov-solved-ink);
-        border-radius: 10px;
-        padding: 1px 8px;
-        font-size: 0.7rem;
-        font-weight: 650;
-        letter-spacing: 0.02em;
-        box-shadow: none;
-        overflow-wrap: anywhere;  /* long machine-ish answers like {"ID":...} have no spaces */
-
-        & .answer-check {
-            margin-right: 3px;
-        }
-    }
-
-    & .tag {
-        border: none;
-        background: var(--ov-chip);
-        color: var(--ov-muted);
-        padding: 0 7px;
-        font-size: 0.68rem;
-    }
-}
-
-/* Priority shows on the status chip; only high/asap get colour */
-.rounds-container .status-badge.normal-priority { background: var(--ov-chip) !important; }
-.rounds-container .status-badge.low-priority { background: none !important; color: var(--gray-500); padding-left: 0; padding-right: 0; }
-.rounds-container .status-badge.high-priority { background: var(--ov-high-chip) !important; color: var(--ov-high-ink); }
-.rounds-container .status-badge.asap-priority { background: var(--asap-priority) !important; color: white; font-weight: 650; }
-
-/* Solved: recede so open puzzles stand out */
-.rounds-container .puzzle.solved .puzzle-title {
-    color: var(--ov-solved-title);
-}
-
-/* Meta / capstone: soft fills + matching tag chips */
-.rounds-container .puzzle.meta {
-    background: var(--ov-meta-bg) !important;
-
-    & .special-tag {
-        background: color-mix(in srgb, var(--ov-meta-ink) 14%, white);
-        color: var(--ov-meta-ink);
-    }
-}
-
-.rounds-container .puzzle.capstone {
-    background: var(--ov-capstone-bg) !important;
-
-    & .special-tag {
-        background: color-mix(in srgb, var(--ov-capstone-ink) 14%, white);
-        color: var(--ov-capstone-ink);
-    }
-}
-
-.rounds-container .puzzle .special-tag {
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    font-size: 0.62rem;
-}
-
-/* Unopened (you haven't clicked through to it yet): heavier and darker title */
-.rounds-container .puzzle.unopened .puzzle-title {
-    font-weight: 650;
-    color: var(--ov-ink);
+@media (max-width: 950px) {
+    .rounds-container { column-count: 1; margin: 10px; }
+    .ov-quick { margin: 12px 10px 0; }
 }
 
 /* Old flat-row overview rules, kept for any other page that still uses them */

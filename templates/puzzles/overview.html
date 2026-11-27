@@ -17,6 +17,12 @@
   <i class="ti ti-filter"></i>
     Filtered View (<span class="reset-filters-link" onClick="resetFilters()">Reset</span>)
 </div>
+<div class="ov-quick" role="group" aria-label="Quick filters">
+  <span>Show</span>
+  <button data-quick="all" onClick="applyQuickFilter('all')">All</button>
+  <button data-quick="open" onClick="applyQuickFilter('open')">Unsolved<span class="n" id="n-open"></span></button>
+  <button data-quick="help" onClick="applyQuickFilter('help')">Needs help<span class="n" id="n-help"></span></button>
+</div>
 <div class="rounds-container" id="roundsContainer">
     <div class="loading-indicator">
         <i class="ti ti-loader-2 loader-icon"></i>
@@ -196,18 +202,6 @@
       localStorage.setItem('viewFilterSelections', JSON.stringify(view_items))
     }
 
-    function toggleRound(round_id) {
-      if (collapsed_rounds.includes(''+round_id)) {
-        document.getElementById(`round-block-${round_id}`).classList.remove("collapsed");
-        r_index = collapsed_rounds.indexOf(''+round_id);
-        collapsed_rounds.splice(r_index, 1);
-      }
-      else {
-        document.getElementById(`round-block-${round_id}`).classList.add("collapsed");
-        collapsed_rounds.push(''+round_id);
-      }
-      localStorage.setItem('collapsedRounds', JSON.stringify(collapsed_rounds));
-    }
 
     function updateCheckboxes () {
       document.getElementById('descriptions-on').checked = view_items.descriptions;
@@ -468,153 +462,292 @@
       const isFilterPopupOpen = filterPopup.classList.contains('active');
     }
     
-    // Template function for a puzzle
-    function renderPuzzle(puzzle) {
-        let puzzle_priority = puzzle.priority ? puzzle.priority.replace(/!/g, '') : "normal";
-      
-        return `
-            <div class="puzzle ${puzzle.tags.includes("meta") ? "meta" : ''} ${puzzle.tags.includes("capstone") ? 'capstone' : ''} ${puzzle.unopened ? 'unopened' : ''} ${puzzle.answer ? 'solved' : ''} ${puzzle_priority}-priority-puzzle">
-                <div class="puzzle-top">
-                  <div class="puzzle-header">
-                    <a href="/puzzle/${puzzle.id}" target="_blank"><span class="puzzle-title">${puzzle.title}</span></a>
-                    <a href="/puzzle/linkout/${puzzle.id}" target="_blank" class="puzzle-link" target="_blank">
-                        <i class="ti ti-external-link"></i>
-                    </a>
-                  </div>
-                  <div class="badges">
-                  ${puzzle.solver_count > 0 && puzzle.status ? `
-                        <button class="solver-count" title="Show current solvers" onClick="viewSolvers(${puzzle.id})">
-                            <i class="ti ti-users"></i>
-                            ${puzzle.solver_count}
-                        </button>
-                  ` : `
-                        <button class="show-on-hover solver-count" title="Show solver history" onClick="viewSolvers(${puzzle.id})">
-                            <i class="ti ti-history"></i>
-                        </button>
-                  `}
-                  ${puzzle.status ? `
-                      <div class="status-badge ${puzzle_priority}-priority">${puzzle.status}</div> `
-                      : `<div class="answer-badge"><i class="ti ti-circle-check answer-check"></i>${puzzle.answer}</div>`}
-                  </div>
-                </div>
-                ${puzzle.description ? `<div class="puzzle-description ${view_items.descriptions ? "" : "hidden"}">${puzzle.description}</div>` : ''}
-                <div class="puzzle-meta ${view_items.tags ? "" : "hidden"}">
-                    ${puzzle.tags && puzzle.tags.length > 0 ? `
-                        <div class="puzzle-tags">
-                            ${puzzle.tags.map(tag => `<span class="tag ${['meta', 'capstone'].includes(tag) ? 'special-tag' : ''}">${tag}</span>`).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
+    // ---------- Overview rendering (status-column design) ----------
+
+    // Every status maps to one of nine display kinds; anything unknown falls back to idle.
+    // "help" kinds tint their status cell and count towards the Needs help quick filter.
+    const STATUS_KIND = {
+      'not a puzzle':          'idle',
+      'not started':           'idle',
+      'being worked on':       'active',
+      'we got this!':          'got',
+      'needs extraction':      'extract',
+      'needs insight':         'insight',
+      'needs bodies':          'bodies',
+      'currently impuzzlable': 'blocked',
+      'abandoned':             'dead',
+    };
+    const HELP_KINDS = new Set(['extract', 'insight', 'bodies']);
+    const SOLVED_STATUS = 'solved!';
+    const kindOf = p => p.answer ? 'solved' : (STATUS_KIND[p.status] || 'idle');
+    const needsHelp = p => HELP_KINDS.has(kindOf(p));
+    const isOpen = p => !['solved', 'dead'].includes(kindOf(p));
+
+    const ICONS = {
+      idle:   '<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+      active: '<circle cx="8" cy="8" r="5.75" fill="currentColor"/>',
+      got:    '<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2.3" fill="currentColor"/>',
+      bodies: '<path d="M8 1.6 14.8 13.8H1.2Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><path d="M8 6.2v3.4" style="stroke:var(--paper)" stroke-width="1.7" stroke-linecap="round"/><circle cx="8" cy="11.7" r="1" style="fill:var(--paper)"/>',
+      insight:'<path d="M8 1.7 14.3 8 8 14.3 1.7 8Z" fill="currentColor"/>',
+      extract:'<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2.75a5.25 5.25 0 0 0 0 10.5Z" fill="currentColor"/>',
+      blocked:'<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.4 11.6 11.6 4.4" stroke="currentColor" stroke-width="1.6"/>',
+      dead:   '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+      solved: '<path d="M3.2 8.4 6.6 11.6 12.9 4.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    };
+    const statusIcon = k => `<svg class="ov-ic" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${ICONS[k]}</svg>`;
+    const CHEV = '<svg class="ov-chev" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const LINK = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // Quick filters are presets over the Status filter (hide_items.statuses).
+    const QUICK_FILTERS = {
+      all:  () => [],
+      open: () => dataMap.statuses.filter(s => s === SOLVED_STATUS || STATUS_KIND[s] === 'dead'),
+      help: () => dataMap.statuses.filter(s => s === SOLVED_STATUS || !HELP_KINDS.has(STATUS_KIND[s] || 'idle')),
+    };
+    const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+    function activeQuickFilter() {
+      return Object.keys(QUICK_FILTERS).find(k => sameSet(hide_items.statuses, QUICK_FILTERS[k]())) || null;
+    }
+    function applyQuickFilter(name) {
+      hide_items.statuses = QUICK_FILTERS[name]();
+      createDropdownItems(dataMap.statuses, 'status-content', 'statuses');
+      updateDropdownButton('statuses');
+      saveToLocalStorage();
+      updateFilter();
     }
 
-    // Deepest nesting we style distinctly; anything deeper reuses the last level's look.
-    const MAX_STYLED_DEPTH = 4;
-
-    // Build {roots, children} from the flat, depth-first round list the API returns.
-    function buildRoundTree(rounds) {
-        const byId = new Map(rounds.map(r => [String(r.id), r]));
-        const children = new Map();
-        const roots = [];
-        rounds.forEach(r => {
-            const parentId = r.parent_round_id != null ? String(r.parent_round_id) : null;
-            if (parentId && byId.has(parentId)) {
-                if (!children.has(parentId)) children.set(parentId, []);
-                children.get(parentId).push(r);
-            } else {
-                roots.push(r);
-            }
+    // Indexes over the whole hunt, rebuilt on every render (data refreshes every minute).
+    let OV = null;
+    function buildIndex(rounds) {
+      const byId = new Map(rounds.map(r => [String(r.id), r]));
+      const children = new Map(), parent = new Map(), homes = new Map(), puzzles = new Map();
+      const roots = [];
+      rounds.forEach(r => {
+        const key = String(r.id);
+        const parentId = r.parent_round_id != null ? String(r.parent_round_id) : null;
+        if (parentId && byId.has(parentId) && parentId !== key) {
+          if (!children.has(parentId)) children.set(parentId, []);
+          children.get(parentId).push(r);
+          parent.set(key, parentId);
+        } else {
+          roots.push(r);
+        }
+        (r.puzzles || []).forEach(p => {
+          puzzles.set(p.id, p);
+          if (!homes.has(p.id)) homes.set(p.id, []);
+          homes.get(p.id).push(key);
         });
-        return {roots, children};
+      });
+      return {byId, children, parent, homes, puzzles, roots};
     }
+    function ancestors(key) {
+      const out = [], seen = new Set([key]);
+      while (OV.parent.has(key)) {
+        key = OV.parent.get(key);
+        if (seen.has(key)) break;
+        seen.add(key); out.push(key);
+      }
+      return out;
+    }
+
+    // Every puzzle in a round and its descendants, each counted once (ignores filters).
+    function subtreePuzzles(key, seen = new Set(), out = new Map()) {
+      if (seen.has(key)) return out;
+      seen.add(key);
+      (OV.byId.get(key).puzzles || []).forEach(p => out.set(p.id, p));
+      (OV.children.get(key) || []).forEach(c => subtreePuzzles(String(c.id), seen, out));
+      return out;
+    }
+    function roundStats(key) {
+      const ps = [...subtreePuzzles(key).values()];
+      return {ps, total: ps.length, solved: ps.filter(p => p.answer).length};
+    }
+    const pctOf = st => st.total ? Math.round(100 * st.solved / st.total) : 0;
 
     function puzzleIsVisible(puzzle) {
         return (((puzzle.status && !hide_items.statuses.includes(puzzle.status)) ||
-                 (puzzle.answer && !hide_items.statuses.includes("solved!"))) &&
+                 (puzzle.answer && !hide_items.statuses.includes(SOLVED_STATUS))) &&
                 (puzzle.priority && !hide_items.priorities.includes(puzzle.priority)));
     }
-
-    // Returns {html, solvedIds, allIds} for a round and everything nested in it (ids are Sets, so a
-    // puzzle in several nested rounds counts once), or null if
-    // nothing in it is visible under the current filters. A round hidden by the round filter
-    // drops its own puzzles but still shows any visible child rounds.
-    function renderRoundTree(round, tree, depth, seen) {
-        const key = String(round.id);
-        if (seen.has(key)) return null;  // guard against parent cycles
-        seen.add(key);
-
-        const getPriority = (tags) =>
-          tags.includes("meta") ? 0 : tags.includes("capstone") ? 1 : 2;
-        const ownPuzzles = (round.puzzles && !hide_items.rounds.includes(round.round))
-            ? round.puzzles.filter(puzzleIsVisible).sort((a, b) => getPriority(a.tags) - getPriority(b.tags))
-            : [];
-
-        const allIds = new Set(ownPuzzles.map(p => p.id));
-        const solvedIds = new Set(ownPuzzles.filter(p => p.answer).map(p => p.id));
-        const childHtml = [];
-        (tree.children.get(key) || []).forEach(child => {
-            const rendered = renderRoundTree(child, tree, depth + 1, seen);
-            if (rendered) {
-                childHtml.push(rendered.html);
-                rendered.allIds.forEach(id => allIds.add(id));
-                rendered.solvedIds.forEach(id => solvedIds.add(id));
-            }
-        });
-        if (ownPuzzles.length === 0 && childHtml.length === 0) return null;
-
-        const collapsed = collapsed_rounds.includes(key);
-        const styleDepth = Math.min(depth, MAX_STYLED_DEPTH);
-        const solved = solvedIds.size, total = allIds.size;
-        const pct = total ? Math.round(100 * solved / total) : 0;
-        const toggle = `<button class="collapse-round-button" title="Collapse/expand" onClick="toggleRound('${round.id}')"><i class="ti ti-chevron-down collapse-chevron"></i></button>`;
-        const progress = `<span class="round-progress ${solved === total ? 'complete' : ''}" title="Solved puzzles in this round and its sub-rounds">${solved === total ? '<i class="ti ti-check"></i> ' : ''}${solved}/${total}</span>`;
-        // Every level: tree-style toggle chevron before the title. Top-level rounds also get a progress bar.
-        const html = `
-            <div class="round depth-${styleDepth} ${depth > 1 ? 'child-round' : ''} ${collapsed ? 'collapsed' : ''}" id="round-block-${round.id}">
-                <div class="round-header">
-                    ${toggle}
-                    <div class="round-header-left">
-                    <div class="round-title">${round.round}</div>
-                    ${round.description ? `<div class="round-description">${round.description}</div>` : ''}
-                    </div>
-                    <div class="round-header-right">
-                      ${progress}
-                    </div>
-                </div>
-                ${depth === 1 ? `<div class="round-progress-bar"><span style="width: ${pct}%"></span></div>` : ''}
-                <div class="round-body">
-                    ${ownPuzzles.length ? `
-                        <div class="puzzle-grid">
-                            ${ownPuzzles.map(puzzle => renderPuzzle(puzzle)).join('')}
-                        </div>` : ''}
-                    ${childHtml.join('')}
-                </div>
-            </div>`;
-        return {html: depth === 1 ? `<div class="roundwrapper">${html}</div>` : html, solvedIds, allIds};
+    // A round's own puzzles that pass the filters (the round filter hides only that round's own puzzles).
+    function ownVisiblePuzzles(round) {
+      if (!round.puzzles || hide_items.rounds.includes(round.round)) return [];
+      const order = p => p.tags.includes('meta') ? 0 : p.tags.includes('capstone') ? 1 : 2;
+      return round.puzzles.filter(puzzleIsVisible).sort((a, b) => order(a) - order(b));
     }
 
-    // Function to render the dashboard
+    const guides = n => '<span class="ov-guide"></span>'.repeat(Math.max(0, n));
+    const isCollapsed = key => collapsed_rounds.includes(key);
+    function toggleButton(key, inner) {
+      return `<button class="ov-toggle" data-toggle="${key}" aria-expanded="${!isCollapsed(key)}" onClick="toggleRound('${key}')">${CHEV}${inner}</button>`;
+    }
+
+    function titleLink(p) {
+      const words = String(p.title).split(' ');
+      const last = words.pop();
+      const head = words.length ? esc(words.join(' ')) + ' ' : '';
+      // The external-link icon is glued to the last word (word joiner) so it never wraps onto a line alone.
+      return `<a class="ov-title" href="/puzzle/${p.id}" target="_blank">${head}<span class="ov-nw">${esc(last)}</span></a>&#8288;<a class="ov-ext" href="/puzzle/linkout/${p.id}" target="_blank" title="Open the puzzle itself" aria-label="Open the puzzle itself"><i class="ti ti-external-link"></i></a>`;
+    }
+
+    function asideHtml(p) {
+      const solvers = p.solver_count > 0 && !p.answer
+        ? `<button class="ov-solvers" title="Show current solvers" onClick="viewSolvers(${p.id})"><i class="ti ti-users"></i>${p.solver_count}</button>`
+        : `<button class="ov-solvers ov-history" title="Show solver history" aria-label="Show solver history" onClick="viewSolvers(${p.id})"><i class="ti ti-history"></i></button>`;
+      const prio = (p.priority || '').replace(/!/g, '');
+      const prioPill = !p.answer && (prio === 'high' || prio === 'asap')
+        ? `<span class="ov-pill ov-pill-${prio}">${prio === 'asap' ? 'ASAP' : 'High'}</span>` : '';
+      const tagPill = t => t === 'meta' ? '<span class="ov-pill ov-pill-meta">Meta</span>'
+        : t === 'capstone' ? '<span class="ov-pill ov-pill-capstone">Capstone</span>'
+        : `<span class="ov-pill ov-pill-tag">${esc(t)}</span>`;
+      const tags = p.tags.length
+        ? `<span class="ov-tags puzzle-meta ${view_items.tags ? '' : 'hidden'}">${p.tags.map(tagPill).join('')}</span>` : '';
+      return `<span class="ov-aside">${solvers}${prioPill}${tags}</span>`;
+    }
+
+    function roundLabel(key) {
+      return 'Also in ' + esc(OV.byId.get(key).round);
+    }
+    function subline(p, key) {
+      const others = (OV.homes.get(p.id) || []).filter(h => h !== key);
+      if (!p.description && !others.length) return '';
+      const desc = p.description
+        ? `<span class="puzzle-description ${view_items.descriptions ? '' : 'hidden'}">${esc(p.description)}</span>` : '';
+      const links = others.map(h =>
+        `<button class="ov-also" onClick="goToCopy(${p.id}, '${h}')">${LINK}${roundLabel(h)}</button>`).join('');
+      return `<div class="ov-sub">${desc}${links}</div>`;
+    }
+
+    function puzzleRow(p, key, depth) {
+      const k = kindOf(p);
+      const tags = p.tags || [];
+      const cls = ['ov-row', 'k-' + k, HELP_KINDS.has(k) ? 'help' : '', p.unopened ? 'unread' : '',
+                   tags.includes('meta') ? 'is-meta' : tags.includes('capstone') ? 'is-capstone' : '',
+                   p.priority === 'low' ? 'is-low' : ''].join(' ');
+      const label = p.answer ? `<span class="ov-ans">${esc(p.answer)}</span>` : esc(p.status || 'not started');
+      return `<div class="${cls}" data-pid="${p.id}" data-round="${key}">
+        <div class="ov-state">${statusIcon(k)}<span class="ov-label">${label}</span></div>
+        <div class="ov-main">${guides(depth)}<div class="ov-body">${p.unopened ? '<span class="ov-udot" title="You haven\'t opened this puzzle yet"></span>' : ''}
+          <div class="ov-tline"><span class="ov-tmain">${titleLink(p)}${p.answer ? `<span class="ov-ans ov-ans-m">${esc(p.answer)}</span>` : ''}</span>${asideHtml(p)}</div>${subline(p, key)}
+        </div></div>
+      </div>`;
+    }
+
+    // Rows for a round's visible contents: own puzzles first, then sub-rounds. '' if nothing is visible.
+    function roundItems(round, depth, seen) {
+      const key = String(round.id);
+      let html = ownVisiblePuzzles(round).map(p => puzzleRow(p, key, depth)).join('');
+      (OV.children.get(key) || []).forEach(child => { html += subRound(child, depth + 1, seen); });
+      return html;
+    }
+    function subRound(round, depth, seen) {
+      const key = String(round.id);
+      if (seen.has(key)) return '';
+      seen.add(key);
+      const items = roundItems(round, depth, seen);
+      if (!items) return '';
+      const st = roundStats(key);
+      return `<div class="ov-row ov-head" id="round-block-${key}">
+          <div class="ov-state" title="Solved puzzles in this round and its sub-rounds"><span>${st.solved}/${st.total}</span><span class="ov-minibar" aria-hidden="true"><i style="width:${pctOf(st)}%"></i></span></div>
+          <div class="ov-main">${guides(depth - 1)}${toggleButton(key, `<span><span class="ov-rname">${esc(round.round)}</span>${round.description ? `<span class="ov-rdesc">${esc(round.description)}</span>` : ''}</span>`)}</div>
+        </div>` + (isCollapsed(key) ? '' : items);
+    }
+    function topRound(round, seen) {
+      const key = String(round.id);
+      seen.add(key);
+      const items = roundItems(round, 0, seen);
+      if (!items) return '';
+      const st = roundStats(key);
+      const help = st.ps.filter(needsHelp).length;
+      const prog = st.ps.filter(p => ['active', 'got'].includes(kindOf(p))).length;
+      const idle = st.ps.filter(p => !p.answer && p.status === 'not started').length;
+      return `<section class="ov-panel" id="round-block-${key}">
+        <div class="ov-root">
+          ${toggleButton(key, `<span><span class="ov-rootname">${esc(round.round)}</span>${round.description ? `<span class="ov-rootdesc">${esc(round.description)}</span>` : ''}</span>`)}
+          <div class="ov-rootcount"><b>${st.solved}</b> of ${st.total} solved</div>
+          <div class="ov-rootbar" aria-hidden="true"><i style="width:${pctOf(st)}%"></i></div>
+          <div class="ov-summary">${help ? `<button onClick="applyQuickFilter('help')">${help} need${help === 1 ? 's' : ''} help</button>, ` : ''}${prog} in progress, ${idle} not started</div>
+        </div>
+        ${isCollapsed(key) ? '' : items}
+      </section>`;
+    }
+
+    function toggleRound(key) {
+      key = String(key);
+      const i = collapsed_rounds.indexOf(key);
+      if (i >= 0) collapsed_rounds.splice(i, 1); else collapsed_rounds.push(key);
+      localStorage.setItem('collapsedRounds', JSON.stringify(collapsed_rounds));
+      renderDashboard(puzzleData);
+      document.querySelector(`[data-toggle="${key}"]`)?.focus();
+    }
+
+    // "Also in …": expand the other round, scroll its copy into view, flash it and focus its title.
+    function goToCopy(pid, key) {
+      const before = collapsed_rounds.length;
+      collapsed_rounds = collapsed_rounds.filter(r => r !== key && !ancestors(key).includes(r));
+      if (collapsed_rounds.length !== before) {
+        localStorage.setItem('collapsedRounds', JSON.stringify(collapsed_rounds));
+        renderDashboard(puzzleData);
+      }
+      const el = document.querySelector(`.ov-row[data-pid="${pid}"][data-round="${key}"]`);
+      if (!el) return;  // hidden by the current filters
+      const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({block: 'center', behavior: reduce ? 'auto' : 'smooth'});
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      setTimeout(() => el.classList.remove('flash'), 1600);
+      el.querySelector('.ov-title')?.focus({preventScroll: true});
+    }
+
+    // Hover/focus on a puzzle highlights every copy of it on the page.
+    let hlPid = null;
+    function setHighlight(pid) {
+      if (pid === hlPid) return;
+      const container = document.getElementById('roundsContainer');
+      container.querySelectorAll('.ov-row.hl').forEach(n => n.classList.remove('hl'));
+      if (pid) container.querySelectorAll(`.ov-row[data-pid="${pid}"]`).forEach(n => n.classList.add('hl'));
+      hlPid = pid;
+    }
+    (function () {
+      const container = document.getElementById('roundsContainer');
+      const onPoint = e => { const el = e.target.closest && e.target.closest('[data-pid]'); setHighlight(el ? el.dataset.pid : null); };
+      container.addEventListener('mouseover', onPoint);
+      container.addEventListener('focusin', onPoint);
+      container.addEventListener('mouseleave', () => setHighlight(null));
+      container.addEventListener('focusout', e => { if (!container.contains(e.relatedTarget)) setHighlight(null); });
+    })();
+
+    function renderQuickFilters() {
+      const all = [...OV.puzzles.values()];
+      const active = activeQuickFilter();
+      document.getElementById('n-open').textContent = all.filter(isOpen).length;
+      document.getElementById('n-help').textContent = all.filter(needsHelp).length;
+      document.querySelectorAll('.ov-quick [data-quick]').forEach(b =>
+        b.setAttribute('aria-pressed', String(b.dataset.quick === active)));
+      return active;
+    }
+
     function renderDashboard(data) {
         const container = document.getElementById('roundsContainer');
-        let html = '';
-
-        let filteredView = false;
-        for (let key in hide_items) {
-          hide_items[key].length !== 0 ? filteredView = true : null;
-        }
-
-        filteredView ? document.querySelector('.filtered-view-announcement').classList.remove("hidden") :
-                       document.querySelector('.filtered-view-announcement').classList.add("hidden");
-
+        OV = buildIndex(data.rounds);
+        hlPid = null;
         collapsed_rounds = JSON.parse(localStorage.getItem('collapsedRounds')) || collapsed_rounds;
-        const tree = buildRoundTree(data.rounds);
-        const seen = new Set();
-        tree.roots.forEach(round => {
-            const rendered = renderRoundTree(round, tree, 1, seen);
-            if (rendered) html += rendered.html;
-        });
 
+        const quick = renderQuickFilters();
+        // The "Filtered View" banner is for custom filters; a quick-filter preset is already shown by its button.
+        const filteredView = Object.keys(hide_items).some(k => hide_items[k].length !== 0);
+        const presetOnly = quick && hide_items.priorities.length === 0 && hide_items.rounds.length === 0;
+        document.querySelector('.filtered-view-announcement').classList.toggle('hidden', !filteredView || presetOnly);
+
+        const seen = new Set();
+        let html = OV.roots.map(r => topRound(r, seen)).join('');
+        if (!html) {
+          const msg = quick === 'help' ? 'Nothing needs help right now.'
+                    : quick === 'open' ? 'Every puzzle is solved or abandoned.'
+                    : 'No puzzles match the current filters.';
+          html = `<p class="ov-empty">${msg}</p>`;
+        }
         container.innerHTML = html;
         document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
     }
