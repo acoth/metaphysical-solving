@@ -18,7 +18,7 @@ admin.site.register(Status, SlugAdmin)
 admin.site.register(Priority, SlugAdmin)
 
 class ItemAdmin(OrderedModelAdmin):
-	list_display = ('name', 'move_up_down_links')
+	list_display = ('name', 'id','move_up_down_links')
 class RoundInline(admin.TabularInline):
 	model = Round
 	fields = ('name', 'parent_round', 'description')
@@ -26,7 +26,7 @@ class RoundInline(admin.TabularInline):
 	show_change_link = True
 
 class HuntAdmin(OrderedModelAdmin):
-	list_display = ('name', 'is_current', 'move_up_down_links')
+	list_display = ('name', 'id', 'is_current', 'move_up_down_links')
 	inlines = [RoundInline]
 admin.site.register(Hunt, HuntAdmin)
 
@@ -35,7 +35,7 @@ class RoundResource(resources.ModelResource):
 		model = Round
 
 class RoundAdmin(ImportExportMixin,OrderedModelAdmin):
-	list_display = ('name', 'hunt', 'parent_round', 'move_up_down_links')
+	list_display = ('name', 'id','hunt', 'parent_round', 'move_up_down_links')
 	resource_classes = [RoundResource]
 	def get_queryset(self, request):
 		qs = super().get_queryset(request)
@@ -55,7 +55,14 @@ class RoundAdmin(ImportExportMixin,OrderedModelAdmin):
 	list_select_related = ('hunt', 'parent_round')
 	fields = ('hunt', 'name', 'parent_round', 'description')
 admin.site.register(Round, RoundAdmin)
-admin.site.register(Tag, ItemAdmin)
+
+class TagResource(resources.ModelResource):
+	class Meta:
+		model = Tag
+class TagAdmin(ImportExportMixin,OrderedModelAdmin):
+	list_display = ('name','id', 'move_up_down_links')
+	resource_classes = [TagResource]
+admin.site.register(Tag, TagAdmin)
 admin.site.register(Location, ItemAdmin)
 
 class PuzzleResource(resources.ModelResource):
@@ -63,7 +70,7 @@ class PuzzleResource(resources.ModelResource):
 		model = Puzzle
 
 class PuzzleAdmin(ImportExportMixin,OrderedModelAdmin):
-	list_display = ('title', 'status', 'priority', 'answer', 'move_up_down_links')
+	list_display = ('title', 'id', 'status', 'priority', 'answer', 'move_up_down_links')
 	list_filter = ('status', 'priority', 'rounds__hunt', 'rounds')
 	search_fields = ('title', 'answer')
 	filter_horizontal = ('rounds',)
@@ -129,10 +136,10 @@ admin.site.register(QueuedAnswer,OrderedModelAdmin)
 admin.site.register(QueuedHint,OrderedModelAdmin)
 
 class UserProfileAdmin(admin.ModelAdmin):
-	list_display = ('user','active_hunt')
+	list_display = ('user','id','active_hunt')
 admin.site.register(UserProfile,UserProfileAdmin)
 
 
 class UserZulipStatusAdmin(admin.ModelAdmin):
-	list_display = ('user','status','zulip_id')
+	list_display = ('user','id','status','zulip_id')
 admin.site.register(UserZulipStatus,UserZulipStatusAdmin)
