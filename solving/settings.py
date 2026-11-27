@@ -191,7 +191,8 @@ INSTALLED_APPS = (
     # 'django.contrib.admindocs',
     'social_django',
     'ordered_model',
-    'puzzles'
+    'puzzles',
+    'import_export',
 )
 
 # Needed to avoid warnings for Django 3.2+

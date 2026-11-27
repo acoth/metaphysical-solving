@@ -5,6 +5,8 @@ from django.db.models import ManyToManyField
 from django.forms import ModelMultipleChoiceField
 from django.http import HttpRequest
 from ordered_model.admin import OrderedModelAdmin
+from import_export.admin import ImportExportMixin
+from import_export import resources
 from puzzles.models import Hunt, Round, Status, Priority, Tag, UploadedFile, Location, Puzzle, SubmittedAnswer, \
     PuzzleWrongAnswer, Config, AccessLog, JitsiRooms, PuzzleFolder, PuzzleTemplate, QueuedAnswer, QueuedHint, UserProfile, UserZulipStatus
 
@@ -28,9 +30,13 @@ class HuntAdmin(OrderedModelAdmin):
 	inlines = [RoundInline]
 admin.site.register(Hunt, HuntAdmin)
 
-class RoundAdmin(OrderedModelAdmin):
-	list_display = ('name', 'hunt', 'parent_round', 'move_up_down_links')
+class RoundResource(resources.ModelResource):
+	class Meta:
+		model = Round
 
+class RoundAdmin(ImportExportMixin,OrderedModelAdmin):
+	list_display = ('name', 'hunt', 'parent_round', 'move_up_down_links')
+	resource_classes = [RoundResource]
 	def get_queryset(self, request):
 		qs = super().get_queryset(request)
 		active_hunt = UserProfile.objects.get(user=request.user).active_hunt
@@ -51,11 +57,17 @@ class RoundAdmin(OrderedModelAdmin):
 admin.site.register(Round, RoundAdmin)
 admin.site.register(Tag, ItemAdmin)
 admin.site.register(Location, ItemAdmin)
-class PuzzleAdmin(OrderedModelAdmin):
+
+class PuzzleResource(resources.ModelResource):
+	class Meta:
+		model = Puzzle
+
+class PuzzleAdmin(ImportExportMixin,OrderedModelAdmin):
 	list_display = ('title', 'status', 'priority', 'answer', 'move_up_down_links')
 	list_filter = ('status', 'priority', 'rounds__hunt', 'rounds')
 	search_fields = ('title', 'answer')
 	filter_horizontal = ('rounds',)
+	resource_classes = [PuzzleResource]
 	fields = ('title', 'url', 'hunt','status', 'priority', 'tags', 'motp', 'description', 'rounds',
 			  'solvers', 'topic_name', 'spreadsheet', 'answer', 'checkAnswerLink', 'template', 'folder')
 	def get_queryset(self, request):
