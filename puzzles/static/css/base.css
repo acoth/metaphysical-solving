@@ -1180,7 +1180,8 @@ select {
     margin-top: calc((1.35rem - 16px) / 2);
 }
 .k-idle .ov-label, .k-dead .ov-label { color: var(--ov-ink-3); }
-.help .ov-state { background: color-mix(in srgb, var(--sc) 11%, var(--ov-surface)); }
+/* Help statuses: a coloured bar down the left edge of the status cell (a full-cell fill stopped short of indented titles) */
+.help .ov-state { box-shadow: inset 3px 0 0 var(--sc); }
 .help .ov-label { color: var(--sc); font-weight: 700; }
 .ov-ans { font-weight: 700; letter-spacing: .04em; color: var(--s-solved); }
 .ov-ans-long { font-size: .6875rem; letter-spacing: .01em; }
