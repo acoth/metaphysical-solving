@@ -612,13 +612,13 @@
       const pill = t => t === 'meta' ? '<span class="ov-pill ov-pill-meta">Meta</span>'
         : t === 'capstone' ? '<span class="ov-pill ov-pill-capstone">Capstone</span>'
         : `<span class="ov-pill ov-pill-tag">${esc(t)}</span>`;
-      return `<span class="ov-tags puzzle-meta ${view_items.tags ? '' : 'hidden'}">${p.tags.map(pill).join('')}</span>`;
+      return `<div class="ov-tags puzzle-meta ${view_items.tags ? '' : 'hidden'}">${p.tags.map(pill).join('')}</div>`;
     }
 
     function roundLabel(key) {
       return 'Also in ' + esc(OV.byId.get(key).round);
     }
-    // Under the title: tags, description, and links to the puzzle's other rounds.
+    // Under the title: a line of tags, then the description and links to the puzzle's other rounds.
     function subline(p, key) {
       const others = (OV.homes.get(p.id) || []).filter(h => h !== key);
       if (!p.description && !others.length && !p.tags.length) return '';
@@ -626,7 +626,8 @@
         ? `<span class="puzzle-description ${view_items.descriptions ? '' : 'hidden'}">${esc(p.description)}</span>` : '';
       const links = others.map(h =>
         `<button class="ov-also" onClick="goToCopy(${p.id}, '${h}')">${LINK}${roundLabel(h)}</button>`).join('');
-      return `<div class="ov-sub">${tagsHtml(p)}${desc}${links}</div>`;
+      const rest = desc || links ? `<div class="ov-sub">${desc}${links}</div>` : '';
+      return tagsHtml(p) + rest;
     }
 
     // Answers with a long unbroken word get a smaller size so they fit the status column.
