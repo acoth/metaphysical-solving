@@ -1329,9 +1329,9 @@ select {
 
 .ov-sub {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 3px 12px;
+    flex-direction: column;  /* description, then each "Also in" link on its own line */
+    align-items: flex-start;
+    gap: 2px;
     margin-top: 3px;
     font-size: .8125rem;
     color: var(--ov-ink-2);
