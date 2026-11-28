@@ -948,6 +948,13 @@ select {
     }
 }
 
+/* The overview page uses Atkinson Hyperlegible throughout (header, menu, filters, popups), not just the cards.
+   Icon fonts are untouched: .ti sets its font with !important, and icon pseudo-elements set their own. */
+body.page-overview,
+body.page-overview *:not(.ti) {
+    font-family: 'Atkinson Hyperlegible', 'Inter', sans-serif;
+}
+
 /* Overview: rounds and puzzles (status-column design).
    Every row is a two-column grid: a fixed-width status cell on the left, title and details on the right.
    Nesting only indents the right column (thin guide lines, one per level), so statuses line up in one
