@@ -172,3 +172,7 @@ Owner's asks: make the nesting more apparent, cut down on lines, and give the ov
   Needs help) are presets over the Status filter. Header counts now ignore filters (shared puzzles count once).
 - Not ported: dark mode (the app has none), Atkinson Hyperlegible (kept Inter), the marker legend.
 - Status column shrinks via container queries: 8.25rem when the card is ≤560px, icon-only at ≤400px.
+- 2026-11-28 follow-up: tag pills moved under the title (with description / "Also in"); High/ASAP priority moved
+  under the status in the status column; answers with a word over 10 letters use a smaller size; ordinary
+  status cells lost their grey tint (only help, meta/capstone and header bands are tinted); lighter row rules;
+  overview uses Atkinson Hyperlegible (rest of the app stays Inter).

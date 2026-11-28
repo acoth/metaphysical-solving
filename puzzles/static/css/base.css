@@ -1,5 +1,7 @@
 /* Font family (Inter) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+/* Overview font: keeps l / 1 / I distinct in puzzle titles and answers */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap');
 
 /* Icons (Tabler) */
 @import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css');
@@ -955,11 +957,12 @@ select {
 
 .rounds-container,
 .ov-quick {
+    --ov-font: 'Atkinson Hyperlegible', 'Inter', sans-serif;
     --ov-surface: #ffffff;
     --ov-ink: #17212b;
     --ov-ink-2: #4f5a67;
     --ov-ink-3: #8c95a0;
-    --ov-rule: #e5e9ee;
+    --ov-rule: #edf0f3;
     --ov-rule-2: #d3dae1;
     --ov-tint: #f4f6f8;
     --ov-hover: rgba(23, 33, 43, .05);
@@ -999,6 +1002,7 @@ select {
     gap: 6px;
     margin: 16px 20px 0;
     font-size: .875rem;
+    font-family: var(--ov-font);
     color: var(--ov-ink-2);
 
     & > span { margin-right: 2px; }
@@ -1026,6 +1030,7 @@ select {
     padding: 18px 16px;
     color: var(--ov-ink-2);
     font-size: .9375rem;
+    font-family: var(--ov-font);
     background: var(--ov-surface);
     border-radius: 12px;
     box-shadow: 0 0 0 1px var(--ov-rule-2);
@@ -1042,6 +1047,7 @@ select {
     box-shadow: 0 0 0 1px var(--ov-rule-2), 0 1px 2px rgba(16, 24, 40, .04);
     overflow: hidden;  /* last row's status cell follows the rounded corner */
     color: var(--ov-ink);
+    font-family: var(--ov-font);
     line-height: 1.35;
     font-size: 15px;
     --paper: var(--ov-surface);
@@ -1161,7 +1167,7 @@ select {
     align-items: flex-start;
     gap: 7px;
     padding: 9px 8px 9px 13px;
-    background: var(--ov-tint);
+    background: transparent;
     font-size: .8125rem;
     line-height: 1.35rem;
     color: var(--ov-ink-2);
@@ -1177,6 +1183,27 @@ select {
 .help .ov-state { background: color-mix(in srgb, var(--sc) 11%, var(--ov-surface)); }
 .help .ov-label { color: var(--sc); font-weight: 700; }
 .ov-ans { font-weight: 700; letter-spacing: .04em; color: var(--s-solved); }
+.ov-ans-long { font-size: .6875rem; letter-spacing: .01em; }
+.ov-stext {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+/* High / ASAP priority, under the status */
+.ov-prio {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: .6875rem;
+    font-weight: 700;
+    line-height: 1.05rem;
+    white-space: nowrap;
+}
+.ov-prio-high { background: #fde3d3; color: #9a3412; }
+.ov-prio-asap { background: var(--asap-priority, #ea580c); color: #fff; }
+.ov-prio-short { display: none; }
 .ov-ans-m { display: none; font-size: .8125rem; }
 
 .k-idle { --sc: var(--s-idle); }
@@ -1253,9 +1280,6 @@ select {
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 4px;
-    max-width: 50%;
     padding-top: .15rem;
 }
 .ov-solvers {
@@ -1277,21 +1301,19 @@ select {
 .ov-row:focus-within .ov-history { opacity: 1; }
 .ov-pill {
     display: inline-block;
-    padding: 1px 7px 2px;
+    padding: 0 6px;
     border-radius: 999px;
-    font-size: .75rem;
+    font-size: .6875rem;
     font-weight: 700;
-    line-height: 1.1rem;
+    line-height: 1.05rem;
     white-space: nowrap;
     background: var(--ov-tint);
     color: var(--ov-ink-2);
 }
 .ov-pill-meta { background: var(--ov-meta-pill); color: var(--ov-meta-ink); }
 .ov-pill-capstone { background: var(--ov-cap-pill); color: var(--ov-cap-ink); }
-.ov-pill-high { background: #fde3d3; color: #9a3412; }
-.ov-pill-asap { background: var(--asap-priority, #ea580c); color: #fff; }
-.ov-pill-tag { font-weight: 500; }
-.ov-tags { display: contents; }
+.ov-pill-tag { font-weight: 400; }
+.ov-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .ov-tags.hidden { display: none; }
 
 .is-meta { background: var(--ov-meta-bg); --paper: var(--ov-meta-bg); }
@@ -1302,8 +1324,9 @@ select {
 .ov-sub {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 14px;
-    margin-top: 2px;
+    align-items: center;
+    gap: 3px 12px;
+    margin-top: 3px;
     font-size: .8125rem;
     color: var(--ov-ink-2);
     overflow-wrap: anywhere;
@@ -1367,8 +1390,10 @@ select {
 
 /* Card narrower than the full design (three-column layout): slimmer status column */
 @container ovpanel (max-width: 560px) {
-    .ov-row { --sw: 8.25rem; }
-    .ov-state { padding-left: 11px; font-size: .75rem; gap: 6px; }
+    .ov-row { --sw: 8.75rem; }
+    .ov-state { padding-left: 10px; padding-right: 6px; font-size: .75rem; gap: 6px; }
+    .ov-ans { letter-spacing: .02em; }
+    .ov-ans-long { letter-spacing: 0; }
     .ov-head .ov-state { gap: 6px; }
     .ov-minibar { width: 2rem; }
     .ov-guide { width: 16px; background-position: 7.25px 0; }
@@ -1379,6 +1404,10 @@ select {
     .ov-row { --sw: 2.5rem; }
     .ov-label, .ov-minibar { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .ov-state { padding-left: 11px; padding-right: 3px; }
+    .ov-row:not(.ov-head) .ov-state { flex-direction: column; align-items: flex-start; gap: 3px; }
+    .ov-prio { padding: 0 4px; }
+    .ov-prio-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .ov-prio-short { display: inline; }
     .ov-head .ov-state { font-size: .7rem; padding-left: 5px; padding-right: 0; }
     .ov-ans-m { display: block; margin-top: 1px; }
     .ov-guide { width: 14px; background-position: 6.25px 0; }
