@@ -726,6 +726,7 @@
     }
     (function () {
       const container = document.getElementById('roundsContainer');
+      if (!container) return;  // no hunt selected: the page has no rounds
       const onPoint = e => { const el = e.target.closest && e.target.closest('[data-pid]'); setHighlight(el ? el.dataset.pid : null); };
       container.addEventListener('mouseover', onPoint);
       container.addEventListener('focusin', onPoint);
@@ -745,6 +746,7 @@
 
     function renderDashboard(data) {
         const container = document.getElementById('roundsContainer');
+        if (!container) return;
         OV = buildIndex(data.rounds);
         hlPid = null;
         collapsed_rounds = JSON.parse(localStorage.getItem('collapsedRounds')) || collapsed_rounds;
