@@ -1325,8 +1325,6 @@ select {
 
 .is-meta { background: var(--ov-meta-bg); --paper: var(--ov-meta-bg); }
 .is-capstone { background: var(--ov-cap-bg); --paper: var(--ov-cap-bg); }
-.is-meta .ov-state { background: color-mix(in srgb, var(--ov-meta-bg) 55%, var(--ov-meta-pill)); }
-.is-capstone .ov-state { background: color-mix(in srgb, var(--ov-cap-bg) 55%, var(--ov-cap-pill)); }
 
 .ov-sub {
     display: flex;
