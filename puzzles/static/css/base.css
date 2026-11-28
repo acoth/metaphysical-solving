@@ -1180,18 +1180,7 @@ select {
     margin-top: calc((1.35rem - 16px) / 2);
 }
 .k-idle .ov-label, .k-dead .ov-label { color: var(--ov-ink-3); }
-/* Icon + label. Help statuses get a tinted chip that hugs the text instead of filling the whole cell,
-   so the tint never ends abruptly short of an indented title. Same padding on every row keeps icons aligned. */
-.ov-chip {
-    display: inline-flex;
-    align-items: flex-start;
-    gap: 7px;
-    max-width: 100%;
-    margin-left: -5px;
-    padding: 0 7px 0 5px;
-    border-radius: 6px;
-}
-.help .ov-chip { background: color-mix(in srgb, var(--sc) 14%, transparent); }
+.help .ov-state { background: color-mix(in srgb, var(--sc) 11%, var(--ov-surface)); }
 .help .ov-label { color: var(--sc); font-weight: 700; }
 .ov-ans { font-weight: 700; letter-spacing: .04em; color: var(--s-solved); }
 .ov-ans-long { font-size: .6875rem; letter-spacing: .01em; }
@@ -1409,7 +1398,6 @@ select {
 @container ovpanel (max-width: 560px) {
     .ov-row { --sw: 8.75rem; }
     .ov-state { padding-left: 10px; padding-right: 6px; font-size: .75rem; gap: 6px; }
-    .ov-chip { gap: 6px; }
     .ov-ans { letter-spacing: .02em; }
     .ov-ans-long { letter-spacing: 0; }
     .ov-head .ov-state { gap: 6px; }
