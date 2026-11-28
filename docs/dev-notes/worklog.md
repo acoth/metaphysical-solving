@@ -118,3 +118,61 @@ Fix: branch `reland-hunt-rounds-batch` from `origin/master`. It reverts the reve
 The resulting tree equals `batch-queries` plus `Dev Setup.md`. 23 tests OK on SQLite and on Postgres. `zulip-hunt-mods` merges onto it cleanly.
 After it merges: close #8 and #9, and delete `hunt-model`, `multi-round-puzzles`, `batch-queries` and `revert-*` on GitHub.
 Then open `zulip-hunt-mods` → `master`.
+
+## 2026-11-13: branch `nested-overview` (from master @ 77d7b31), visual draft for review
+
+Goal: nested rounds show *inside* their parent on the overview (up to 4 levels), and puzzles are individual tiles.
+
+- Frontend only (`templates/puzzles/overview.html` and `puzzles/static/css/base.css`). `/api_overview` already returns every round with
+  `parent_round_id`, including empty parents.
+- `buildRoundTree()` builds the tree from the flat round list. `renderRoundTree()` renders recursively: a round's body shows its own
+  puzzles, each as its own full-width box (an earlier multi-per-row tile grid was rejected by the owner as too cramped) and then its child rounds as inset boxes.
+  A round is shown if it has any visible puzzle at any depth. Hiding a round with the round filter hides only its own puzzles; its children still show.
+  It's guarded against parent cycles. Depth classes `depth-1`..`depth-4`; deeper levels reuse depth 4's look.
+- Each header has a "solved/total" pill that counts that round and everything under it, with distinct puzzle ids so shared puzzles count once.
+  Solved tiles are tinted green; meta, capstone and unopened keep their old looks.
+- Fixed `toggleRound` (`splice(i)` → `splice(i, 1)`): expanding one round no longer forgets every round collapsed after it.
+- Cache-buster for `base.css` bumped `?1` → `?2`.
+- Demo data on the local DB: "Nesting Demo" (4 levels, 14 puzzles, every status). Created with a scratch script that stubs out Zulip
+  and Google. Every demo puzzle URL starts with `https://nesting-demo.invalid/`. Backup taken first:
+  `~/backups/puzzle_db_pre-nesting-demo_20261113-044430.dump`.
+- Checked with no browser available: the page's JS ran in QuickJS against the real `/api_overview` JSON. Nesting, totals, filters and
+  collapse behaved as expected. 23 tests OK.
+
+## 2026-11-14: `nested-overview`, visual pass 2 (one commit, so it can be reverted on its own)
+
+Owner's asks: make the nesting more apparent, cut down on lines, and give the overview a more consistent palette.
+- The palette is scoped to `.rounds-container` (`--ov-*` variables), so other pages are unchanged. Teal (the app's `--primary`) for round
+  headers and titles. Neutral chips for normal statuses and tags. Colour only where it means something: green for solved
+  (answer chip; the title fades), amber for meta, cyan for capstone, orange for high/asap priority.
+- Top-level rounds: white card, teal-tinted header, "solved/total" count, and a 3px green progress bar under the header.
+- Nested rounds aren't boxed any more: a chevron before the title (tree-style; it points right when collapsed), and their contents are indented
+  under one 2px guide line that gets lighter with depth. This replaces the borders, left rules and tinted headers.
+- Puzzle rows: no borders or shadows; spacing plus a hover highlight. Unopened puzzles get a bold title and a small teal dot instead of the
+  peach background and green stripe.
+- CSS cache-buster `?5`. Re-checked in QuickJS against the real data: tree, totals, filters and collapse all fine. 23 tests OK.
+- Follow-up (owner feedback):
+  - Cards: header tint raised to 15% teal, plus a 1px teal-grey outline, so they stand out from the page background.
+  - Unopened puzzles: no dot. Unopened titles are bold and dark; opened ones are regular weight and lighter; solved ones are lightest.
+  - Collapse chevron is on the left at every level and points right when collapsed.
+  - Right edges line up at every depth through `--ov-right-inset` (14px = body padding 6 + row padding 8). Header paddings are derived from it,
+    and the low-priority status, which is plain text, has no side padding, so its text lines up with the chip edges.
+
+## 2026-11-27 — overview: status-column redesign (branch `nested-overview`)
+
+- Previous design preserved at branch `nested-overview-v1` (a31d5dc); the new design is one commit on top.
+- Ported the prototype in ~/reference (BRIEF.md + reference.html): each top-level round is a card whose rows
+  are a two-column grid (fixed status column + title column); nesting indents only the title column with
+  guide lines, so statuses line up at every depth. Help statuses (insight/bodies/extraction) tint their cell.
+- Status mapping: not a puzzle/not started → idle, being worked on → active, we got this! → got,
+  needs extraction/insight/bodies → help kinds, currently impuzzlable → blocked, abandoned → dead,
+  answer present → solved.
+- Kept: 3-column masonry, filter popup (status/priority/round), show descriptions/tags toggles, collapsed
+  rounds in localStorage, solver count/history dialog, link-out, 60s refresh. Quick filters (All / Unsolved /
+  Needs help) are presets over the Status filter. Header counts now ignore filters (shared puzzles count once).
+- Not ported: dark mode (the app has none), Atkinson Hyperlegible (kept Inter), the marker legend.
+- Status column shrinks via container queries: 8.25rem when the card is ≤560px, icon-only at ≤400px.
+- 2026-11-28 follow-up: tag pills moved under the title (with description / "Also in"); High/ASAP priority moved
+  under the status in the status column; answers with a word over 10 letters use a smaller size; ordinary
+  status cells lost their grey tint (only help, meta/capstone and header bands are tinted); lighter row rules;
+  overview uses Atkinson Hyperlegible (rest of the app stays Inter).
