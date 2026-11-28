@@ -1270,6 +1270,7 @@ select {
 .ov-row:focus-within .ov-ext { opacity: 1; }
 
 .unread .ov-title { font-weight: 700; }
+.k-solved .ov-udot, .k-dead .ov-udot { opacity: .4; }  /* fade with the greyed-out title */
 .k-solved .ov-title, .k-dead .ov-title { color: var(--ov-ink-3); }
 .k-dead .ov-title { text-decoration: line-through; text-decoration-thickness: 1px; }
 .is-low .ov-title { color: var(--ov-ink-2); }
