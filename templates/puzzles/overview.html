@@ -641,7 +641,7 @@
                    p.priority === 'low' ? 'is-low' : ''].join(' ');
       const label = p.answer ? `<span class="${answerClass(p.answer)}">${esc(p.answer)}</span>` : esc(p.status || 'not started');
       return `<div class="${cls}" data-pid="${p.id}" data-round="${key}">
-        <div class="ov-state">${statusIcon(k)}<span class="ov-stext"><span class="ov-label">${label}</span>${priorityHtml(p)}</span></div>
+        <div class="ov-state"><span class="ov-stext"><span class="ov-chip">${statusIcon(k)}<span class="ov-label">${label}</span></span>${priorityHtml(p)}</span></div>
         <div class="ov-main">${guides(depth)}<div class="ov-body">${p.unopened ? '<span class="ov-udot" title="You haven\'t opened this puzzle yet"></span>' : ''}
           <div class="ov-tline"><span class="ov-tmain">${titleLink(p)}${p.answer ? `<span class="ov-ans ov-ans-m">${esc(p.answer)}</span>` : ''}</span>${solversHtml(p)}</div>${subline(p, key)}
         </div></div>
